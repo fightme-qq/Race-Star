@@ -11,11 +11,18 @@ const COMBAT_SLOTS = [
 
 // Общая экономическая ветка — названия [F], числа [X] (в кадрах видны
 // только несмежные уровни, кривую по ним не восстановить).
+// Прибавка ПЛОСКАЯ (gain за уровень), цена растёт на pg за уровень.
+// Раньше прибавка тоже росла геометрически (gg~1.3 при pg~1.35) — доход
+// обгонял цену, и симуляция ушла в бесконечность за 4 минуты. Плоская
+// прибавка при экспоненциальной цене даёт логарифм: каждый следующий
+// уровень окупается всё дольше.
+// Victory Celebrations даёт не плоские деньги, а СЕКУНДЫ дохода к призу за
+// победу — иначе к середине игры бонус обесценивается на два порядка.
 const ECONOMY_SLOTS = [
-  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 1.35, gain: 3,  gg: 1.30, effect: 'incomePerSec' },
-  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 1.32, gain: 2,  gg: 1.28, effect: 'incomePerSec' },
-  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.30, gain: 10, gg: 1.15, effect: 'fansPerRace' },
-  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 1.34, gain: 9,  gg: 1.30, effect: 'winBonus' },
+  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 1.155, gain: 1.4, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 1.150, gain: 1.9, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.190, gain: 2.0, unit: 'фан.',  effect: 'fansPerRace' },
+  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 1.170, gain: 0.9, unit: 'с',     effect: 'winBonusSec' },
 ]
 
 // Трофейная ветка [F]: цена 1 трофей, Lv.0 -> "0% -> 10%".

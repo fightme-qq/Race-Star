@@ -30,8 +30,8 @@ export function upgradeEffect(def, level) {
   if (def.kind === 'combat' || def.kind === 'trophy') {
     return { current: def.step * level, next: def.step * (level + 1), unit: '%' }
   }
-  const sum = (n) => (n === 0 ? 0 : def.gain * (Math.pow(def.gg, n) - 1) / (def.gg - 1))
-  return { current: sum(level), next: sum(level + 1), unit: def.effect === 'fansPerRace' ? '' : '$' }
+  // Экономика: прибавка плоская, копится линейно по уровням.
+  return { current: def.gain * level, next: def.gain * (level + 1), unit: def.unit }
 }
 
 export function isUpgradeLocked(def, state) {
@@ -40,7 +40,7 @@ export function isUpgradeLocked(def, state) {
 
 // Свод по классу: суммарные проценты и плоские прибавки.
 export function aggregateClass(classId, levels) {
-  const out = { offensePct: 0, defensePct: 0, incomePerSec: 0, fansPerRace: 0, winBonus: 0 }
+  const out = { offensePct: 0, defensePct: 0, incomePerSec: 0, fansPerRace: 0, winBonusSec: 0 }
   for (const def of CLASS_BY_ID[classId].upgrades) {
     const level = levels[def.key] || 0
     if (level === 0) continue

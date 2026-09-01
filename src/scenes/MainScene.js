@@ -97,7 +97,12 @@ export class MainScene extends Phaser.Scene {
     const parts = [`P${res.position}`, formatMoney(res.prize), `👥 +${formatNum(res.fans)}`]
     if (res.gems > 0) parts.push(`💎 +${res.gems}`)
     this.toasts.show(parts.join('  ·  '), res.position === 1 ? PAL.green : PAL.panelAlt)
-    if (res.seasonEnded) this.toasts.show(`Сезон завершён · ${this.state.league.name}`, PAL.purple)
+    if (res.seasonEnded) {
+      this.toasts.show(
+        res.promoted ? `Повышение! ${this.state.league.name}` : `Сезон завершён · ${this.state.league.name}`,
+        res.promoted ? PAL.gold : PAL.purple
+      )
+    }
     this.refreshUI()
   }
 

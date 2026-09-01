@@ -8,10 +8,12 @@
 ```
 src/config/     palette.js (цвета/шрифт), balance.js (ВСЕ числа), classes.js (6 классов + апгрейды)
 src/utils/      format.js (219M / $1.21K / 00:59), rng.js (сидированный ГПСЧ)
-src/systems/    GameState, SaveSystem, UpgradeSystem, RaceSimulation, RaceController
+src/systems/    GameState, SaveSystem, UpgradeSystem, RaceSimulation,
+                RaceRewards (начисление за финиш), RaceController
 src/ui/         widgets (Button/Bar/panel/label), TopBar, RacePanel, TrackView,
                 UpgradeCard, UpgradeGrid, BottomNav, Toasts, ClassesModal
 src/scenes/     BootScene (сплэш), MainScene (главный экран)
+tools/sim/      балансный стенд (см. ниже), tools/smoke.mjs — прогон в Chrome
 ```
 
 Файл > 200 строк — делим. Ассетов нет: весь UI рисуется примитивами Phaser.
@@ -31,6 +33,13 @@ src/scenes/     BootScene (сплэш), MainScene (главный экран)
    перехватывает клики у кнопок внутри карточек — уже наступали на эти грабли.
 6. Состояние сохраняется в localStorage (`SaveSystem`, ключ `race-star-save`,
    поле `version`). Меняешь форму сейва — поднимай `VERSION`.
+7. **Награды за финиш — только в `RaceRewards.applyRaceResult`.** Их считает и
+   игра, и балансный стенд; вторая копия формул рассинхронизируется молча.
+8. **Прибавка от экономических апгрейдов ПЛОСКАЯ, цена — экспонента.**
+   Растущая прибавка при растущей цене уводит доход в бесконечность: первый
+   же прогон стенда дал `$NaN` и `1.6e+168` фанатов на четвёртой минуте.
+9. **Тронул числа в `balance.js`/`classes.js` — прогони `npm run sim`.**
+   На глаз кривая идлера не проверяется.
 
 ## Что уже сделано (Этап 1)
 

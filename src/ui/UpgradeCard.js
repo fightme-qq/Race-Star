@@ -60,7 +60,10 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
     const price = s.priceOf(def.key)
 
     this.lvlText.setText('Lv. ' + level)
-    const fmt = (v) => (eff.unit === '$' ? formatMoney(v) : eff.unit === '%' ? v.toFixed(0) + '%' : formatNum(v))
+    const fmt = (v) =>
+      eff.unit === '%' ? v.toFixed(0) + '%'
+      : eff.unit === '$/с' ? formatMoney(v) + '/с'
+      : formatNum(v) + ' ' + eff.unit
     this.effText.setText(`${fmt(eff.current)} → ${fmt(eff.next)}`)
 
     if (isUpgradeLocked(def, s)) {

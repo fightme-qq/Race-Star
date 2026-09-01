@@ -22,7 +22,7 @@ export class RaceSimulation {
     this.racers = [{
       id: 0, isPlayer: true, progress: 0, position: 1,
       offense: playerOffense, defense: playerDefense, power: playerPower,
-      speed: 1, wobble: this.rng.float(0, Math.PI * 2),
+      form: this.drawForm(), speed: 1, wobble: this.rng.float(0, Math.PI * 2),
     }]
 
     for (let i = 0; i < RACE.racers - 1; i++) {
@@ -30,7 +30,7 @@ export class RaceSimulation {
       this.racers.push({
         id: i + 1, isPlayer: false, progress: 0, position: i + 2,
         offense: power * 0.5, defense: power * 0.5, power,
-        speed: 1, wobble: this.rng.float(0, Math.PI * 2),
+        form: this.drawForm(), speed: 1, wobble: this.rng.float(0, Math.PI * 2),
       })
     }
 
@@ -38,10 +38,17 @@ export class RaceSimulation {
     this.lastPlayerPos = 1
   }
 
+  // Форма на заезд: разыгрывается ОДИН раз при создании гонки и держится все
+  // 60 секунд. Покадровый шум за 600 тиков усредняется почти в ноль и исход
+  // не меняет — вся вариативность результата живёт здесь.
+  drawForm() {
+    return Math.exp(this.rng.gauss(0, RACE.formSigma))
+  }
+
   // Базовая скорость от соотношения силы; сжата корнем, чтобы отставший
   // не терял круг за 10 секунд, а разрыв читался как борьба.
   baseSpeedOf(racer) {
-    return Math.pow(racer.power / this.meanPower, 0.45)
+    return Math.pow(racer.power / this.meanPower, 0.45) * racer.form
   }
 
   step(dt) {
@@ -52,7 +59,7 @@ export class RaceSimulation {
 
     for (const r of this.racers) {
       const defShare = r.defense / Math.max(1, r.offense + r.defense)
-      const sigma = 0.30 * (1 - defShare * 0.45)
+      const sigma = RACE.stepNoise * (1 - defShare * 0.45)
       const noise = this.rng.gauss(0, sigma)
       // Плавная составляющая — чтобы точки не дёргались покадрово.
       r.wobble += step * 1.7

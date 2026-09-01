@@ -1,5 +1,6 @@
 import { RaceSimulation } from './RaceSimulation.js'
-import { ECONOMY, RACE, SEASON, GEMS, LEAGUES } from '../config/balance.js'
+import { applyRaceResult } from './RaceRewards.js'
+import { RACE } from '../config/balance.js'
 import { randomSeed } from '../utils/rng.js'
 
 // Жизненный цикл гонок: старт -> тики -> награды -> сразу следующая гонка.
@@ -53,39 +54,8 @@ export class RaceController {
   }
 
   finish() {
-    const s = this.state
-    const pos = this.sim.player.position
-    const idx = pos - 1
-
-    const prize = s.incomePerSec * ECONOMY.prizeSeconds * ECONOMY.placePrize[idx]
-      + (pos === 1 ? s.agg.winBonus : 0)
-    s.addCash(prize)
-
-    const fans = Math.round((10 + s.agg.fansPerRace) * ECONOMY.placeFans[idx])
-    s.cls.fans += fans
-
-    let gems = 0
-    if (pos === 1) {
-      gems = s.addGems(GEMS.perWin)
-      s.addTrophies(1)
-      s.cls.seasonScore += SEASON.winPoints
-    } else if (pos <= 3) {
-      s.cls.seasonScore += SEASON.podiumPoints
-    }
-
-    s.cls.seasonRaces++
-    let seasonEnded = false
-    if (s.cls.seasonRaces >= SEASON.races) {
-      seasonEnded = true
-      // "Win the season to advance" — повышение при достаточном счёте.
-      const need = SEASON.races * 1.4
-      if (s.cls.seasonScore >= need && s.cls.league < LEAGUES.length - 1) s.cls.league++
-      s.cls.season++
-      s.cls.seasonRaces = 0
-      s.cls.seasonScore = 0
-    }
-
-    s.save()
-    this.onFinish({ position: pos, prize, fans, gems, seasonEnded })
+    const result = applyRaceResult(this.state, this.sim.player.position)
+    this.state.save()
+    this.onFinish(result)
   }
 }

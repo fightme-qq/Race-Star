@@ -46,12 +46,15 @@ export class GameState {
   get defense() { return STATS.baseDefense * (1 + this.agg.defensePct / 100) }
   get teamPower() { return this.offense + this.defense }
 
+  // Три множителя дохода, каждый со своей формой роста — см. ECONOMY.
   get fanMultiplier() { return 1 + this.cls.fans / ECONOMY.fansPerFanBonus }
+  get leagueMultiplier() { return Math.pow(ECONOMY.leagueIncomeMult, this.cls.league) }
+  get classMultiplier() { return Math.pow(ECONOMY.classIncomeMult, this.clsDef.index) }
 
   get incomePerSec() {
     const base = ECONOMY.baseIncomePerSec + this.agg.incomePerSec
     const boost = this.adBoostActive ? AD_BOOST.multiplier : 1
-    return base * this.fanMultiplier * boost
+    return base * this.fanMultiplier * this.leagueMultiplier * this.classMultiplier * boost
   }
 
   get adBoostActive() { return this.adBoostUntil > Date.now() }
