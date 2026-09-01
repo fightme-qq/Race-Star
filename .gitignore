@@ -1,0 +1,9 @@
+node_modules/
+dist/
+android/
+ios/
+builds/
+*.apk
+*.aab
+*.ipa
+.capacitor/
