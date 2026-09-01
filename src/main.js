@@ -1,21 +1,20 @@
 import Phaser from 'phaser'
 import { BootScene } from './scenes/BootScene.js'
-import { GameScene } from './scenes/GameScene.js'
-import { UIScene }   from './scenes/UIScene.js'
+import { MainScene } from './scenes/MainScene.js'
+import { PAL } from './config/palette.js'
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game-container',
   width: 390,
   height: 844,
-  backgroundColor: '#1a1a2e',
-  physics: {
-    default: 'arcade',
-    arcade: { gravity: { y: 0 }, debug: false },
-  },
+  backgroundColor: PAL.bg,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, GameScene, UIScene],
+  scene: [BootScene, MainScene],
 })
+
+// Ручка для отладки из консоли браузера.
+window.__game = game
