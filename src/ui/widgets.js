@@ -43,7 +43,12 @@ export class Button extends Phaser.GameObjects.Container {
     }).setOrigin(0.5)
     this.add([this.bg, this.txt])
     this.setSize(w, h)
-    this.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains)
+    // Hit-area контейнера задаётся от ЛЕВОГО ВЕРХНЕГО угла, даже когда сам
+    // контейнер центрирован: Phaser перед проверкой прибавляет к точке
+    // displayOrigin (= width/2, height/2). Прямоугольник -w/2..w/2 из-за этого
+    // уезжал на полширины влево — правая половина кнопки не нажималась, а
+    // пустое место слева от неё нажималось. Нашлось smoke-тестом драйверов.
+    this.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains)
     this.enabled = true
     this.downAt = null
     // Срабатываем на отпускании и только если палец не уехал — иначе

@@ -9,7 +9,9 @@ export class Toasts extends Phaser.GameObjects.Container {
     super(scene, x, y)
     this.queue = []
     scene.add.existing(this)
-    this.setDepth(50)
+    // Выше модалок (у них 100): плашки — единственный отклик на действия
+    // внутри них. На глубине 50 сообщение «Класс открыт!» уходило под окно.
+    this.setDepth(150)
   }
 
   show(text, color = PAL.accent) {

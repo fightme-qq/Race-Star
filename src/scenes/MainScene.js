@@ -8,6 +8,7 @@ import { UpgradeGrid } from '../ui/UpgradeGrid.js'
 import { BottomNav } from '../ui/BottomNav.js'
 import { Toasts } from '../ui/Toasts.js'
 import { ClassesModal } from '../ui/ClassesModal.js'
+import { DriversModal } from '../ui/drivers/DriversModal.js'
 import { formatMoney, formatNum } from '../utils/format.js'
 
 // Главный экран: гонка идёт непрерывно, апгрейды покупаются прямо во время неё.
@@ -31,6 +32,7 @@ export class MainScene extends Phaser.Scene {
 
     this.nav = new BottomNav(this, height - 70, width, (i, tab) => {
       if (i === 0) { this.nav.setActive(0); return }
+      if (i === 2) { this.openDrivers(); return }
       this.toasts.show(tab.title + ' — в следующем этапе', PAL.dim)
     })
 
@@ -85,6 +87,17 @@ export class MainScene extends Phaser.Scene {
         this.refreshUI()
         return ok
       },
+    })
+  }
+
+  openDrivers() {
+    if (this.modal?.active) return
+    this.grid.locked = true
+    this.nav.setActive(2)
+    this.modal = new DriversModal(this, this.state, {
+      toast: (text, color) => this.toasts.show(text, color),
+      onChange: () => { this.state.save(); this.refreshUI() },
+      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
     })
   }
 

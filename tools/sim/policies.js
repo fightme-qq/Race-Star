@@ -155,3 +155,22 @@ export const roiGreedy = (state) => {
 }
 
 export const POLICIES = { cheapestFirst, economyOnly, roiGreedy }
+
+// --- Драйверы ------------------------------------------------------------
+// Вторая ось силы качается за гемы, а не за деньги, поэтому не входит в
+// политики закупки и применяется во всех трёх одинаково.
+// Порог перехода на дорогой пак: пока состав слабее All-Star, дешёвый PRO
+// PACK выгоднее по рейтингу на гем (в среднем ~3.5 против ~2.4), но как
+// только пятёрка набрана All-Star'ами, его выпадения перестают попадать в
+// состав вовсе и остаются только кормом.
+const ALLSTAR_SWITCH_RATING = 66
+
+export function driverBot(state) {
+  const squad = state.roster.squad(state.activeClass)
+  const weakest = squad.reduce((m, d) => Math.min(m, (d.off + d.def) / 2), Infinity)
+  const packId = weakest >= ALLSTAR_SWITCH_RATING ? 'allstar' : 'pro'
+  let draws = 0
+  while (state.canDraw(packId) && draws < 500) { state.drawPack(packId); draws++ }
+  state.roster.autoManage(state.activeClass)
+  return draws
+}

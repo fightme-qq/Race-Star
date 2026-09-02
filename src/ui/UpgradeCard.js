@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../config/palette.js'
-import { formatMoney, formatNum } from '../utils/format.js'
+import { formatMoney, formatGain } from '../utils/format.js'
 import { label, Button } from './widgets.js'
 import { upgradeEffect, isUpgradeLocked } from '../systems/UpgradeSystem.js'
 import { TROPHY_UNLOCK_AT } from '../config/balance.js'
@@ -62,8 +62,8 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
     this.lvlText.setText('Lv. ' + level)
     const fmt = (v) =>
       eff.unit === '%' ? v.toFixed(0) + '%'
-      : eff.unit === '$/с' ? formatMoney(v) + '/с'
-      : formatNum(v) + ' ' + eff.unit
+      : eff.unit === '$/с' ? '$' + formatGain(v) + '/с'
+      : formatGain(v) + ' ' + eff.unit
     this.effText.setText(`${fmt(eff.current)} → ${fmt(eff.next)}`)
 
     if (isUpgradeLocked(def, s)) {

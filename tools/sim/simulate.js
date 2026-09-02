@@ -3,9 +3,13 @@ import { clock } from './headless.js'
 import { GameState } from '../../src/systems/GameState.js'
 import { RaceController } from '../../src/systems/RaceController.js'
 import { CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
-import { ratePerSec, expectedPlace } from './policies.js'
+import { ratePerSec, expectedPlace, driverBot } from './policies.js'
 
 const SAMPLE_EVERY_SEC = 300
+// Тот же период, что DRIVER_EVERY=10 гонок в fastsim (10 x 60 с). Без этого
+// полная симуляция шла БЕЗ драйверов, а быстрая — с ними, и строка «сверка
+// моделей» показывала расхождение 19% против 30% побед на пустом месте.
+const DRIVER_EVERY_SEC = 600
 
 // Один прогон: hours игрового времени, шаг dt секунд, бот покупает каждый тик.
 export function simulate({ hours = 24, dt = 1, policy, seed = 1 }) {
@@ -14,6 +18,7 @@ export function simulate({ hours = 24, dt = 1, policy, seed = 1 }) {
   Math.random = mulberry(seed)   // гонки должны быть воспроизводимы между прогонами
 
   const state = new GameState()
+  state.roster.seed = seed * 7919 + 13
   const places = new Array(11).fill(0)
   const samples = []
   const milestones = {}
@@ -39,6 +44,7 @@ export function simulate({ hours = 24, dt = 1, policy, seed = 1 }) {
       if (!milestones[price] && earned >= price) milestones[price] = tick * dt
     }
     purchases += policy(state)
+    if ((tick * dt) % DRIVER_EVERY_SEC === 0) driverBot(state)
     prevCash = state.cash
 
     if ((tick * dt) % SAMPLE_EVERY_SEC === 0) {

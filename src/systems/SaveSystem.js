@@ -1,5 +1,5 @@
 const KEY = 'race-star-save'
-const VERSION = 1
+const VERSION = 2   // 2: добавлен roster — драйверы, состав, счётчики pity
 
 export const SaveSystem = {
   load() {

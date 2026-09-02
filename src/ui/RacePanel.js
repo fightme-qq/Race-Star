@@ -16,6 +16,9 @@ export class RacePanel extends Phaser.GameObjects.Container {
     this.teamText = label(scene, x + 14, y + 12, state.teamName, { size: 17, bold: true, color: CSS.red })
     this.fansText = label(scene, x + 14, y + 34, '', { size: 13, color: CSS.text })
     this.lapText = label(scene, x + 120, y + 35, '', { size: 11, color: CSS.muted })
+    // Сила команды на главном экране — иначе прокачка драйверов не даёт
+    // никакой обратной связи: состав меняется, а на экране ничего не движется.
+    this.powerText = label(scene, x + 196, y + 35, '', { size: 11, color: CSS.muted })
     this.leagueText = label(scene, x + 14, y + 52, '', { size: 10, color: CSS.muted })
 
     // Бейдж позиции и таймера — правый верхний угол, как на кадрах.
@@ -26,7 +29,7 @@ export class RacePanel extends Phaser.GameObjects.Container {
     this.track = new TrackView(scene, x + 10, y + 74, w - 20, h - 86)
 
     this.add([this.teamText, this.fansText, this.lapText, this.leagueText,
-      this.posText, this.timeText, this.track])
+      this.powerText, this.posText, this.timeText, this.track])
     scene.add.existing(this)
   }
 
@@ -34,6 +37,7 @@ export class RacePanel extends Phaser.GameObjects.Container {
     const s = this.state
     this.teamText.setText(s.teamName)
     this.fansText.setText('👥 ' + formatNum(s.cls.fans))
+    this.powerText.setText(`⚔ ${formatNum(s.offense)}   🛡 ${formatNum(s.defense)}`)
     this.leagueText.setText(
       `${s.league.name}   SEASON ${String(s.cls.season).padStart(3, '0')}   SCORE ${s.cls.seasonScore}`
     )

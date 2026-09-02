@@ -1,6 +1,8 @@
 import { RACE_CLASSES, CLASS_BY_ID, getUpgrade } from '../config/classes.js'
-import { STATS, ECONOMY, LEAGUES, GEMS, CLASS_UNLOCK_PRICES, AD_BOOST } from '../config/balance.js'
+import { ECONOMY, LEAGUES, GEMS, CLASS_UNLOCK_PRICES, AD_BOOST } from '../config/balance.js'
+import { PACK_BY_ID, RARITY_BY_ID } from '../config/drivers.js'
 import { aggregateClass, upgradePrice, isUpgradeLocked } from './UpgradeSystem.js'
+import { Roster } from './Roster.js'
 import { SaveSystem } from './SaveSystem.js'
 
 const todayKey = () => new Date().toISOString().slice(0, 10)
@@ -32,6 +34,11 @@ export class GameState {
     for (const c of RACE_CLASSES) {
       this.classes[c.id] = { ...freshClass(c.index), ...(saved?.classes?.[c.id] ?? {}) }
     }
+    // Пятёрка стартовых выдаётся при открытии класса [F: «STARTERS (5)»].
+    this.roster = new Roster(saved?.roster)
+    for (const c of RACE_CLASSES) {
+      if (this.classes[c.id].unlocked) this.roster.ensureStarters(c.id, c.index)
+    }
     this.lastSeen = saved?.lastSeen ?? Date.now()
   }
 
@@ -42,8 +49,10 @@ export class GameState {
   get agg() { return aggregateClass(this.activeClass, this.cls.levels) }
 
   // --- Производные статы -------------------------------------------------
-  get offense() { return STATS.baseOffense * (1 + this.agg.offensePct / 100) }
-  get defense() { return STATS.baseDefense * (1 + this.agg.defensePct / 100) }
+  // База — сумма статов пятёрки состава, проценты апгрейдов идут поверх.
+  get squadStats() { return this.roster.teamStats(this.activeClass) }
+  get offense() { return this.squadStats.off * (1 + this.agg.offensePct / 100) }
+  get defense() { return this.squadStats.def * (1 + this.agg.defensePct / 100) }
   get teamPower() { return this.offense + this.defense }
 
   // Три множителя дохода, каждый со своей формой роста — см. ECONOMY.
@@ -101,7 +110,34 @@ export class GameState {
     if (this.classes[classId].unlocked || this.cash < price) return false
     this.cash -= price
     this.classes[classId].unlocked = true
+    this.roster.ensureStarters(classId, CLASS_BY_ID[classId].index)
     return true
+  }
+
+  // --- Драйверы ----------------------------------------------------------
+  packPrice(packId, count) {
+    const pack = PACK_BY_ID[packId]
+    return count >= 10 ? pack.gems10 : pack.gems1 * count
+  }
+
+  canDraw(packId, count = 1) { return this.gems >= this.packPrice(packId, count) }
+
+  drawPack(packId, count = 1) {
+    if (!this.canDraw(packId, count)) return null
+    this.gems -= this.packPrice(packId, count)
+    return this.roster.draw(packId, count)
+  }
+
+  // Продажа отдаёт СЕКУНДЫ текущего дохода, а не плоскую сумму: к середине
+  // игры плоская цена отстала бы от экономики на порядки (та же причина, что
+  // у призовых в RaceRewards).
+  sellDriver(uid) {
+    const d = this.roster.get(uid)
+    if (!d || this.roster.inSquad(uid)) return 0
+    const amount = this.incomePerSec * RARITY_BY_ID[d.rarity].sellSec
+    this.roster.remove(uid)
+    this.addCash(amount)
+    return amount
   }
 
   activateAdBoost() {
@@ -130,7 +166,7 @@ export class GameState {
       cash: this.cash, gems: this.gems, trophies: this.trophies,
       trophiesEarned: this.trophiesEarned, teamName: this.teamName,
       activeClass: this.activeClass, gemsDay: this.gemsDay, gemsToday: this.gemsToday,
-      classes: this.classes, lastSeen: Date.now(),
+      classes: this.classes, roster: this.roster.toJSON(), lastSeen: Date.now(),
     })
   }
 }

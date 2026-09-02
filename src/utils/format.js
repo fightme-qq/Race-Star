@@ -17,6 +17,13 @@ export function formatMoney(value) {
   return '$' + formatNum(value)
 }
 
+// Прибавки экономических апгрейдов дробные (0.58 $/с за уровень), а formatNum
+// округляет вниз — карточка показывала «$0/с → $0/с» и выглядела сломанной.
+export function formatGain(value) {
+  const n = Number(value) || 0
+  return n >= 10 ? formatNum(n) : String(Math.round(n * 100) / 100)
+}
+
 // Секунды -> 00:59
 export function formatClock(seconds) {
   const s = Math.max(0, Math.ceil(seconds))

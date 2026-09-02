@@ -21,14 +21,19 @@ const COMBAT_SLOTS = [
 // pg и gain подобраны перебором (tools/sim/tune.js). Ключевое: у денежных
 // слотов цена растёт круто (x1.67), у фанатов заметно медленнее (x1.30).
 // Наоборот не работает — при pg фанатов выше ~1.32 Grandstands становится
-// апгрейдом-ловушкой: цена x1.77 за уровень при +0.09 фаната.
+// апгрейдом-ловушкой: цена x1.77 за уровень при +0.09 фаната. Эта граница
+// задана в SPACE у tune.js, и покоординатный спуск обязан её соблюдать:
+// без clamp перебор уводил fanPg на 1.52, то есть ровно в ловушку.
+// Числа пересобраны на Этапе 2: драйверы добавили вторую ось силы, из-за неё
+// игрок проходит лиги быстрее, и денежная ветка подорожала (pg 1.67 -> 1.90),
+// чтобы вехи разблокировки классов вернулись на целевую лесенку.
 // Ticket Marketing: наблюдались цены $33 / $101 / $128 / $466 [F], но уровни
 // несмежные, так что pg по ним не восстанавливается — отсюда [X].
 const ECONOMY_SLOTS = [
-  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 1.666, gain: 0.773, unit: '$/с',   effect: 'incomePerSec' },
-  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 1.661, gain: 1.049, unit: '$/с',   effect: 'incomePerSec' },
-  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.297, gain: 0.773, unit: 'фан.',  effect: 'fansPerRace' },
-  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 1.681, gain: 0.497, unit: 'с',     effect: 'winBonusSec' },
+  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 1.900, gain: 0.577, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 1.895, gain: 0.783, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.320, gain: 0.641, unit: 'фан.',  effect: 'fansPerRace' },
+  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 1.915, gain: 0.371, unit: 'с',     effect: 'winBonusSec' },
 ]
 
 // Трофейная ветка [F]: цена 1 трофей, Lv.0 -> "0% -> 10%".

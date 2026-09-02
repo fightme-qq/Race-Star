@@ -34,10 +34,10 @@ export const PRICE_CURVE = {
 }
 
 // --- Базовые статы команды ----------------------------------------------
-export const STATS = {
-  baseOffense: 100,  // [X] позже придёт из состава драйверов (5 стартовых)
-  baseDefense: 100,  // [X]
-}
+// Здесь жили baseOffense/baseDefense = 100. Теперь база — СУММА эффективных
+// статов пятёрки состава (src/config/drivers.js, STARTER_STATS). Стартовая
+// пятёрка собрана так, чтобы давать ровно 100/100: точка калибровки Этапа 1
+// на старте не сдвинулась, а рост пошёл по второй оси — драйверам.
 
 // --- Экономика -----------------------------------------------------------
 // Три источника роста, намеренно разной формы — иначе кривая либо стоит,
@@ -49,14 +49,14 @@ export const STATS = {
 // между разблокировками классов (см. CLASS_UNLOCK_PRICES).
 export const ECONOMY = {
   baseIncomePerSec: 1,   // [F] стартовое "Income /s $1"
-  fansPerFanBonus: 113000, // [X] множитель дохода = 1 + fans / 113000 (подбор)
+  fansPerFanBonus: 143640, // [X] множитель дохода = 1 + fans / 143640 (подбор)
   fansPerRace: 12,       // [X] базовый прирост фанатов за гонку
   prizeSeconds: 30,      // [X] приз за гонку = доход/сек * 30 * коэф. места
   // [X] коэффициент приза по месту P1..P10
   placePrize: [1.0, 0.72, 0.55, 0.42, 0.32, 0.25, 0.19, 0.14, 0.10, 0.07],
   // [X] бонус фанатов за место (умножает прирост от Grandstands)
   placeFans: [1.6, 1.35, 1.15, 1.0, 0.85, 0.72, 0.6, 0.5, 0.4, 0.3],
-  leagueIncomeMult: 1.585, // [X] доход за ступень лиги — ради этого качают бой
+  leagueIncomeMult: 1.463, // [X] доход за ступень лиги — ради этого качают бой
   classIncomeMult: 3.2,   // [X] доход x3.2 за индекс класса
   offlineCapHours: 4,     // [X] попап офлайн-дохода в оригинале нигде не показан
 }
@@ -67,22 +67,24 @@ export const GEMS = {
 }
 
 // --- Сезоны и лиги -------------------------------------------------------
-// Названия [E] из локализации, сила [X]. Шаг x1.2487 подобран перебором: при
-// более крутой лестнице игрок застревает в середине, при более пологой —
-// пролетает все восемь лиг за первые сутки и доля побед уходит далеко за 15%.
-// Когда появятся драйверы (+10%/ур. от базы стата, merge, гача) — лестницу
-// продлевать вверх, а не пересчитывать: доход за ступень завязан на
-// leagueIncomeMult, и смена нижних ступеней сдвинет все вехи разом.
-export const LEAGUES = [
-  { id: 'rookie',   name: 'ROOKIE LEAGUE',   power: 190 },  // [F] стартовая — ROOKIE
-  { id: 'bronze',   name: 'BRONZE LEAGUE',   power: 237 },
-  { id: 'silver',   name: 'SILVER LEAGUE',   power: 296 },
-  { id: 'gold',     name: 'GOLD LEAGUE',     power: 370 },
-  { id: 'platinum', name: 'PLATINUM LEAGUE', power: 462 },
-  { id: 'diamond',  name: 'DIAMOND LEAGUE',  power: 577 },
-  { id: 'elite',    name: 'ELITE LEAGUE',    power: 720 },
-  { id: 'expert',   name: 'EXPERT LEAGUE',   power: 900 },
+// Названия первых восьми [E] из локализации, дальше [X]. Сила — [X].
+// Лестница продлена вверх на Этапе 2: драйверы дали вторую ось силы (гача +
+// тренировка + звёзды), и на восьми ступенях игрок упирался в потолок лиги
+// задолго до конца прогона. Нижние ступени не трогаем — они держат вехи.
+export const LEAGUE_BASE_POWER = 190   // [F] стартовая ROOKIE
+export const LEAGUE_STEP = 1.4183      // [X] подобран перебором, см. tools/sim/tune.js
+
+const LEAGUE_NAMES = [
+  ['rookie', 'ROOKIE LEAGUE'], ['bronze', 'BRONZE LEAGUE'], ['silver', 'SILVER LEAGUE'],
+  ['gold', 'GOLD LEAGUE'], ['platinum', 'PLATINUM LEAGUE'], ['diamond', 'DIAMOND LEAGUE'],
+  ['elite', 'ELITE LEAGUE'], ['expert', 'EXPERT LEAGUE'], ['advanced', 'ADVANCED LEAGUE'],
+  ['superior', 'SUPERIOR LEAGUE'], ['master', 'MASTER LEAGUE'], ['champion', 'CHAMPION LEAGUE'],
+  ['world', 'WORLD CLASS LEAGUE'], ['fame', 'HALL OF FAME'],
 ]
+
+export const LEAGUES = LEAGUE_NAMES.map(([id, name], i) => ({
+  id, name, power: Math.round(LEAGUE_BASE_POWER * Math.pow(LEAGUE_STEP, i)),
+}))
 
 export const SEASON = {
   races: 20,           // [X] "SEASON 028 | SCORE 56 | RANK 3" — длина не видна
