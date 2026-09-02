@@ -4,6 +4,7 @@ import { PACK_BY_ID, RARITY_BY_ID } from '../config/drivers.js'
 import { CAREER } from '../config/career.js'
 import { aggregateClass, upgradePrice, isUpgradeLocked } from './UpgradeSystem.js'
 import { Roster } from './Roster.js'
+import { placeDistOf } from './RaceModel.js'
 import { SaveSystem } from './SaveSystem.js'
 import {
   freshCareer, careerEffects, careerStats, addCareerXp,
@@ -12,8 +13,14 @@ import {
 
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
+// [F] Имя команды у каждого класса СВОЁ: на кадре карточки классов у Racing
+// «Racing Reds», у Rally «BootNRally». До шага 1 оно у нас было одно на всю
+// игру. Названия наши [X] — чужие переносить нельзя.
+const TEAM_NAMES = ['Red Racers', 'Iron Stocks', 'Dust Devils', 'Night Riders', 'Blue Streak', 'Big Foot Crew']
+
 const freshClass = (index) => ({
   unlocked: index === 0,
+  teamName: TEAM_NAMES[index] || 'Your Team',
   levels: {},
   fans: 0,
   league: 0,
@@ -31,7 +38,6 @@ export class GameState {
     this.gems = saved?.gems ?? 0
     this.trophies = saved?.trophies ?? 0
     this.trophiesEarned = saved?.trophiesEarned ?? 0
-    this.teamName = saved?.teamName ?? 'Your Team'
     this.activeClass = saved?.activeClass ?? 'racing'
     this.gemsDay = saved?.gemsDay ?? todayKey()
     this.gemsToday = saved?.gemsDay === todayKey() ? (saved?.gemsToday ?? 0) : 0
@@ -59,6 +65,10 @@ export class GameState {
   get league() { return LEAGUES[Math.min(this.cls.league, LEAGUES.length - 1)] }
   get agg() { return aggregateClass(this.activeClass, this.cls.levels) }
 
+  get teamName() { return this.cls.teamName || 'Your Team' }
+  set teamName(v) { this.cls.teamName = String(v).slice(0, 18).trim() || 'Your Team' }
+  leagueOf(classId) { return LEAGUES[Math.min(this.classes[classId].league, LEAGUES.length - 1)] }
+
   // --- Карьерный драйвер -------------------------------------------------
   get career() { return this.cls.career }
   get careerFx() {
@@ -74,15 +84,23 @@ export class GameState {
   // трассу шестым). Проценты апгрейдов и скиллов идут поверх.
   get squadStats() { return this.roster.teamStats(this.activeClass) }
 
-  get power() {
-    const fx = this.careerFx
-    const sq = this.squadStats
-    const cd = this.careerDriver
+  get power() { return this.powerOf(this.activeClass) }
+
+  // Карточка классов показывает силу и шанс победы по КАЖДОМУ классу, а не
+  // только по активному, — поэтому расчёт параметризован классом. Для
+  // активного идём через кэш свода скиллов, для остальных считаем на месте:
+  // кэш один, и держать его на шесть классов ради модалки незачем.
+  powerOf(classId) {
+    const cls = this.classes[classId]
+    const fx = classId === this.activeClass ? this.careerFx : careerEffects(cls.career)
+    const sq = this.roster.teamStats(classId)
+    const cd = careerStats(cls.career, fx)
+    const agg = classId === this.activeClass ? this.agg : aggregateClass(classId, cls.levels)
     // Скиллы уводят проценты в минус (Glass Cannon: −7% защиты за ранг).
     // Нижний зажим 0.05, иначе связка трейд-оффов обнуляет сторону в ноль, а
     // RaceModel берёт от статов логарифм.
-    const offMult = Math.max(0.05, 1 + (this.agg.offensePct + fx.teamOffPct) / 100)
-    const defMult = Math.max(0.05, 1 + (this.agg.defensePct + fx.teamDefPct) / 100)
+    const offMult = Math.max(0.05, 1 + (agg.offensePct + fx.teamOffPct) / 100)
+    const defMult = Math.max(0.05, 1 + (agg.defensePct + fx.teamDefPct) / 100)
     const def = (sq.def + cd.def) * defMult
     // Counter Force [F]: часть обороны засчитывается и в атакующем заезде, при
     // этом из обороны НЕ вычитается — это контратака, а не размен.
@@ -91,6 +109,15 @@ export class GameState {
       off: (sq.off + cd.off) * offMult + def * counter,
       def,
     }
+  }
+
+  // [F] На карточке класса рядом со счётчиком фанатов стоит «🍀 5%». Что это
+  // за число в оригинале, разбор не установил (см. FINDINGS). У нас это
+  // честная вероятность победы в своей лиге — тот же `placeDist`, по которому
+  // решает балансный бот, а не декоративный процент.
+  winChanceOf(classId) {
+    const p = this.powerOf(classId)
+    return placeDistOf(p.off, p.def, this.leagueOf(classId).power)
   }
 
   get offense() { return this.power.off }
@@ -231,7 +258,7 @@ export class GameState {
   save() {
     SaveSystem.save({
       cash: this.cash, gems: this.gems, trophies: this.trophies,
-      trophiesEarned: this.trophiesEarned, teamName: this.teamName,
+      trophiesEarned: this.trophiesEarned,
       activeClass: this.activeClass, gemsDay: this.gemsDay, gemsToday: this.gemsToday,
       classes: this.classes, roster: this.roster.toJSON(), lastSeen: Date.now(),
     })

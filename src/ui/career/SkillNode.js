@@ -15,7 +15,7 @@ export class SkillNode extends Phaser.GameObjects.Container {
   constructor(scene, skill, y, w, onSpend) {
     super(scene, 0, y)
     this.skill = skill
-    this.w = w
+    this.boxW = w
 
     this.bg = scene.add.graphics()
     this.nameText = label(scene, 12, 9, skill.name, { size: 12, bold: true })
@@ -39,9 +39,9 @@ export class SkillNode extends Phaser.GameObjects.Container {
 
     this.bg.clear()
     this.bg.fillStyle(PAL.panelAlt, locked ? 0.4 : 1)
-    this.bg.fillRoundedRect(0, 0, this.w, NODE_H, 12)
+    this.bg.fillRoundedRect(0, 0, this.boxW, NODE_H, 12)
     this.bg.lineStyle(1, active ? PAL.accent : PAL.line, locked ? 0.4 : 1)
-    this.bg.strokeRoundedRect(0, 0, this.w, NODE_H, 12)
+    this.bg.strokeRoundedRect(0, 0, this.boxW, NODE_H, 12)
 
     this.nameText.setAlpha(locked ? 0.5 : 1)
     this.descText.setAlpha(locked ? 0.5 : 1)

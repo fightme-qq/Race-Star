@@ -1,9 +1,10 @@
 import Phaser from 'phaser'
 import { PAL, CSS, FONT } from '../config/palette.js'
 
-// Всплывающие плашки поверх трассы: "Your Team takes the lead!", прирост фанатов
-// и т.п. В оригинале они декоративны и не синхронизированы с картой — у нас
-// приходят из реальных событий симуляции.
+// [F] Всплывающие плашки поверх трассы: на кадре это БЕЛАЯ плашка с цветным
+// жирным текстом («Prime Chargers takes the lead!» красным), а не цветная
+// плашка с белым текстом. В оригинале они декоративны и с картой не связаны —
+// у нас приходят из реальных событий симуляции.
 export class Toasts extends Phaser.GameObjects.Container {
   constructor(scene, x, y) {
     super(scene, x, y)
@@ -18,16 +19,16 @@ export class Toasts extends Phaser.GameObjects.Container {
     const t = this.scene.add.text(0, 0, text, {
       fontFamily: FONT,
       fontSize: '13px',
-      color: CSS.text,
+      color: '#' + color.toString(16).padStart(6, '0'),
       fontStyle: 'bold',
-      backgroundColor: '#' + color.toString(16).padStart(6, '0'),
-      padding: { x: 10, y: 5 },
+      backgroundColor: CSS.panel,
+      padding: { x: 12, y: 6 },
     }).setOrigin(0.5, 0.5)
 
     this.add(t)
     // Сдвигаем уже висящие плашки вниз, новая появляется сверху.
     for (const other of this.list) {
-      if (other !== t) other.y += 26
+      if (other !== t) other.y += 28
     }
     this.scene.tweens.add({
       targets: t,

@@ -32,8 +32,8 @@ export class PacksView extends Phaser.GameObjects.Container {
       return { pack, pity, b1, b10 }
     })
 
-    this.resultTitle = label(scene, x, y + 268, 'ПОСЛЕДНЕЕ ОТКРЫТИЕ', { size: 11, bold: true, color: CSS.muted })
-    this.result = label(scene, x, y + 288, 'Пока пусто', { size: 12, color: CSS.dim })
+    this.resultTitle = label(scene, x, y + 268, 'LAST OPENING', { size: 11, bold: true, color: CSS.muted })
+    this.result = label(scene, x, y + 288, 'Empty', { size: 12, color: CSS.dim })
     this.result.setWordWrapWidth(w)
     this.add([this.resultTitle, this.result])
 
@@ -49,7 +49,7 @@ export class PacksView extends Phaser.GameObjects.Container {
 
   draw(packId, count) {
     const got = this.state.drawPack(packId, count)
-    if (!got) { this.toast('Не хватает гемов', PAL.red); return }
+    if (!got) { this.toast('Not enough gems', PAL.red); return }
     // Сортируем по редкости — лучшее первым, как в оригинальной раскладке.
     const best = [...got].sort((a, b) => ratingOf(b) - ratingOf(a))[0]
     this.result.setText(got.map((d) => `${RARITY_BY_ID[d.rarity].name} ${nameOf(d)} (${ratingOf(d)})`).join('\n'))
@@ -63,8 +63,8 @@ export class PacksView extends Phaser.GameObjects.Container {
   refresh() {
     for (const row of this.rows) {
       const { pack } = row
-      row.pity.setText(`Гарантия ${RARITY_BY_ID[pack.pityRarity].name} через ` +
-        `${this.state.roster.pityLeft(pack.id)} роллов`)
+      row.pity.setText(`Guaranteed ${RARITY_BY_ID[pack.pityRarity].name} in ` +
+        `${this.state.roster.pityLeft(pack.id)} rolls`)
       row.b1.setEnabled(this.state.canDraw(pack.id, 1))
       row.b10.setEnabled(this.state.canDraw(pack.id, 10))
     }

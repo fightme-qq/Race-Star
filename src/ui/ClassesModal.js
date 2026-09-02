@@ -1,80 +1,80 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../config/palette.js'
 import { RACE_CLASSES } from '../config/classes.js'
-import { formatMoney, formatNum } from '../utils/format.js'
 import { panel, label, Button } from './widgets.js'
+import { ScrollView } from './ScrollView.js'
+import { ClassCard } from './classes/ClassCard.js'
 
-// Модалка "Choose Your Sport": сетка 2x3, счётчик "N of 6 unlocked",
-// на карточке — фанаты, лига, кнопка Watch / Unlock $X.
+const GAP = 12
+
+// Модалка «Classes» по кадру: белый лист, заголовок по центру, крестик в
+// правом верхнем углу, вертикальный список карточек во всю ширину. Сетки 2×3,
+// которая была у нас до шага 1, в оригинале нет — карточка слишком высокая.
 export class ClassesModal extends Phaser.GameObjects.Container {
-  constructor(scene, state, { onPick, onUnlock, onClose }) {
+  constructor(scene, state, { onPick, onUnlock, onClose, toast }) {
     super(scene, 0, 0)
     this.state = state
     this.onClose = onClose
+    this.toast = toast
     this.setDepth(100)
 
     const { width, height } = scene.scale
-    const dim = scene.add.rectangle(0, 0, width, height, 0x000000, 0.72).setOrigin(0).setInteractive()
+    const dim = scene.add.rectangle(0, 0, width, height, 0x000000, 0.45).setOrigin(0).setInteractive()
     dim.on('pointerup', () => this.close())
 
-    const bx = 16, by = 120, bw = width - 32, bh = 600
-    panel(scene, bx, by, bw, bh, { fill: PAL.panel, radius: 16, stroke: PAL.line })
-    this.title = label(scene, width / 2, by + 16, 'CHOOSE YOUR CLASS', { size: 16, bold: true, align: 'center' })
-    this.counter = label(scene, width / 2, by + 38, '', { size: 11, color: CSS.muted, align: 'center' })
+    const bx = 10, by = 96, bw = width - 20, bh = height - 170
+    // Лист кладём В КОНТЕЙНЕР, а не просто на сцену: у модалки глубина 100, а
+    // graphics со сцены рисуется на нуле — то есть ПОД затемнением. Старая
+    // модалка страдала тем же, на тёмной теме это просто не было заметно.
+    const sheet = panel(scene, bx, by, bw, bh, { fill: PAL.bg, radius: 18 })
+    const title = label(scene, width / 2, by + 18, 'Classes', { size: 22, bold: true, align: 'center' })
+    const x = new Button(scene, bx + bw - 34, by + 30, 40, 40, '✕',
+      { fill: PAL.panelAlt, color: CSS.muted, size: 18, radius: 20 })
+    x.on('press', () => this.close())
+    this.add([dim, sheet, title, x])
 
-    this.add([dim, this.title, this.counter])
-
-    this.cards = RACE_CLASSES.map((def, i) => {
-      const col = i % 2, row = Math.floor(i / 2)
-      const cw = (bw - 36) / 2, ch = 150
-      const cx = bx + 12 + col * (cw + 12)
-      const cy = by + 62 + row * (ch + 10)
-      const g = scene.add.graphics()
-      const icon = label(scene, cx + cw / 2, cy + 10, def.icon, { size: 30, align: 'center' })
-      const name = label(scene, cx + cw / 2, cy + 52, def.name, { size: 13, bold: true, align: 'center' })
-      const info = label(scene, cx + cw / 2, cy + 70, '', { size: 10, color: CSS.muted, align: 'center' })
-      const btn = new Button(scene, cx + cw / 2, cy + ch - 24, cw - 20, 32, '', { size: 12 })
-      btn.on('press', () => {
-        const cs = state.classes[def.id]
-        if (cs.unlocked) { onPick(def.id); this.close() }
-        else if (onUnlock(def.id)) this.refresh()
+    this.scroll = new ScrollView(scene, bx + 6, by + 60, bw - 12, bh - 72)
+    this.cards = RACE_CLASSES.map((def) => {
+      const card = new ClassCard(scene, state, def, bw - 24, {
+        onPick: (id) => { onPick(id); this.close() },
+        onUnlock: (id) => { if (onUnlock(id)) this.refresh() },
+        onRename: (id) => this.rename(id),
+        onAdvance: () => this.toast?.('League standings arrive with the Leagues tab', PAL.muted),
+        onDetails: () => this.toast?.('Class details arrive with the Leagues tab', PAL.muted),
       })
-      this.add([g, icon, name, info, btn])
-      return { def, g, name, info, btn, rect: { cx, cy, cw, ch } }
+      this.scroll.inner.add(card)
+      return card
     })
-
-    const close = new Button(scene, width / 2, by + bh - 26, 120, 34, 'Закрыть', { fill: PAL.line, size: 12 })
-    close.on('press', () => this.close())
-    this.add(close)
+    this.add(this.scroll)
 
     this.refresh()
     scene.add.existing(this)
   }
 
+  // [F] Карандаш в поле Team Name. Ввод текста в Phaser своего поля не имеет,
+  // а тащить DOM-оверлей ради одной строки дороже, чем занять системный
+  // диалог: в Capacitor-вебвью он работает так же, как в браузере.
+  rename(classId) {
+    const cs = this.state.classes[classId]
+    const next = window.prompt('Team name', cs.teamName)
+    if (next === null) return
+    const trimmed = String(next).slice(0, 18).trim()
+    if (!trimmed) return
+    cs.teamName = trimmed
+    this.state.save()
+    this.refresh()
+  }
+
+  // Высота карточки зависит от того, открыт ли класс, поэтому раскладка
+  // пересчитывается на каждом refresh — открытие класса двигает список.
   refresh() {
-    const s = this.state
-    const unlocked = Object.values(s.classes).filter((c) => c.unlocked).length
-    this.counter.setText(`${unlocked} of ${RACE_CLASSES.length} unlocked`)
-
+    let y = 0
     for (const card of this.cards) {
-      const cs = s.classes[card.def.id]
-      const active = s.activeClass === card.def.id
-      const { cx, cy, cw, ch } = card.rect
-      card.g.clear()
-      card.g.fillStyle(cs.unlocked ? PAL.panelAlt : PAL.bg, 1)
-      card.g.fillRoundedRect(cx, cy, cw, ch, 12)
-      card.g.lineStyle(2, active ? PAL.accent : PAL.line, 1)
-      card.g.strokeRoundedRect(cx, cy, cw, ch, 12)
-
-      if (cs.unlocked) {
-        card.info.setText(`👥 ${formatNum(cs.fans)}   SEASON ${cs.season}`)
-        card.btn.setText(active ? 'Активен' : 'Watch').setFill(active ? PAL.line : PAL.accent).setEnabled(!active)
-      } else {
-        const price = s.unlockPriceFor(card.def.id)
-        card.info.setText('Заблокирован')
-        card.btn.setText('Unlock ' + formatMoney(price)).setFill(PAL.green).setEnabled(s.cash >= price)
-      }
+      card.refresh()
+      card.setPosition(6, y)
+      y += card.cardH + GAP
     }
+    this.scroll.setContentHeight(y - GAP)
   }
 
   close() {

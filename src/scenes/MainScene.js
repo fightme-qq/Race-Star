@@ -2,15 +2,19 @@ import Phaser from 'phaser'
 import { PAL } from '../config/palette.js'
 import { GameState } from '../systems/GameState.js'
 import { RaceController } from '../systems/RaceController.js'
-import { TopBar } from '../ui/TopBar.js'
+import { TopBar, HEADER_H } from '../ui/TopBar.js'
 import { RacePanel } from '../ui/RacePanel.js'
 import { UpgradeGrid } from '../ui/UpgradeGrid.js'
 import { BottomNav } from '../ui/BottomNav.js'
 import { Toasts } from '../ui/Toasts.js'
+import { FinishPopup } from '../ui/FinishPopup.js'
 import { ClassesModal } from '../ui/ClassesModal.js'
 import { DriversModal } from '../ui/drivers/DriversModal.js'
 import { CareerModal } from '../ui/career/CareerModal.js'
-import { formatMoney, formatNum } from '../utils/format.js'
+import { formatMoney } from '../utils/format.js'
+
+const NAV_H = 70
+const RACE_H = 306
 
 // Главный экран: гонка идёт непрерывно, апгрейды покупаются прямо во время неё.
 export class MainScene extends Phaser.Scene {
@@ -27,15 +31,20 @@ export class MainScene extends Phaser.Scene {
       onCareer: () => this.openCareer(),
     })
 
-    this.racePanel = new RacePanel(this, this.state, 10, 90, width - 20, 310)
-    this.toasts = new Toasts(this, width / 2, 220)
+    const raceY = HEADER_H + 8
+    this.racePanel = new RacePanel(this, this.state, 10, raceY, width - 20, RACE_H)
 
-    this.grid = new UpgradeGrid(this, this.state, 10, 410, width - 20, 364, (key) => this.buy(key))
+    const gridY = raceY + RACE_H + 12
+    this.grid = new UpgradeGrid(this, this.state, 10, gridY, width - 20, height - NAV_H - gridY - 8,
+      (key) => this.buy(key))
 
-    this.nav = new BottomNav(this, height - 70, width, (i, tab) => {
+    this.toasts = new Toasts(this, width / 2, raceY + 128)
+    this.finish = new FinishPopup(this, width / 2, raceY + RACE_H / 2)
+
+    this.nav = new BottomNav(this, height - NAV_H, width, (i, tab) => {
       if (i === 0) { this.nav.setActive(0); return }
       if (i === 2) { this.openDrivers(); return }
-      this.toasts.show(tab.title + ' — в следующем этапе', PAL.dim)
+      this.toasts.show(tab.title + ' — coming in a later stage', PAL.muted)
     })
 
     this.race = new RaceController(this.state, {
@@ -47,8 +56,8 @@ export class MainScene extends Phaser.Scene {
     if (offline) {
       const mins = Math.round(offline.seconds / 60)
       this.toasts.show(
-        `Idle income: ${formatMoney(offline.amount)} за ${mins} мин` + (offline.capped ? ' (кап)' : ''),
-        PAL.green
+        `Idle income ${formatMoney(offline.amount)} · ${mins} min` + (offline.capped ? ' (capped)' : ''),
+        PAL.greenDim
       )
     }
 
@@ -66,8 +75,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   activateBoost() {
-    if (this.state.activateAdBoost()) this.toasts.show('2x доход активирован!', PAL.accent)
-    else this.toasts.show('Лимит бустов на этот класс', PAL.dim)
+    if (this.state.activateAdBoost()) this.toasts.show('2x income activated!', PAL.accent)
+    else this.toasts.show('Boost limit reached for this class', PAL.muted)
     this.refreshUI()
   }
 
@@ -75,6 +84,7 @@ export class MainScene extends Phaser.Scene {
     if (this.modal?.active) return
     this.grid.locked = true
     this.modal = new ClassesModal(this, this.state, {
+      toast: (text, color) => this.toasts.show(text, color),
       onClose: () => { this.grid.locked = false; this.modal = null },
       onPick: (id) => {
         this.state.activeClass = id
@@ -85,7 +95,7 @@ export class MainScene extends Phaser.Scene {
       },
       onUnlock: (id) => {
         const ok = this.state.unlockClass(id)
-        this.toasts.show(ok ? 'Класс открыт!' : 'Недостаточно денег', ok ? PAL.green : PAL.red)
+        this.toasts.show(ok ? 'Class unlocked!' : 'Not enough cash', ok ? PAL.green : PAL.red)
         this.refreshUI()
         return ok
       },
@@ -114,20 +124,21 @@ export class MainScene extends Phaser.Scene {
   }
 
   onRaceEvent(ev) {
-    const color = ev.type === 'lead' ? PAL.accent : ev.type === 'lastlap' ? PAL.gold : PAL.panelAlt
+    const color = ev.type === 'lead' ? PAL.red : ev.type === 'lastlap' ? PAL.gold : PAL.accent
     this.toasts.show(ev.text, color)
   }
 
   onRaceFinish(res) {
-    const parts = [`P${res.position}`, formatMoney(res.prize), `👥 +${formatNum(res.fans)}`]
-    if (res.gems > 0) parts.push(`💎 +${res.gems}`)
-    this.toasts.show(parts.join('  ·  '), res.position === 1 ? PAL.green : PAL.panelAlt)
+    // Итог заезда — в попап, а не в общий поток тостов: там он тонул среди
+    // сообщений хода гонки. В оригинале это отдельное окно поверх карты.
+    this.finish.show(res, this.state.gemsToday)
+    if (res.fans > 0) this.racePanel.popFans(this.state.cls.fans, res.fans)
     if (res.careerLevels > 0) {
-      this.toasts.show(`Карьера Lv. ${this.state.career.level} · +${res.careerLevels} очк.`, PAL.cyan)
+      this.toasts.show(`Career Lv. ${this.state.career.level} · +${res.careerLevels} pts`, PAL.cyan)
     }
     if (res.seasonEnded) {
       this.toasts.show(
-        res.promoted ? `Повышение! ${this.state.league.name}` : `Сезон завершён · ${this.state.league.name}`,
+        res.promoted ? `Promoted! ${this.state.league.name}` : `Season complete · ${this.state.league.name}`,
         res.promoted ? PAL.gold : PAL.purple
       )
     }

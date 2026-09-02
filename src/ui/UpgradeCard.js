@@ -5,13 +5,16 @@ import { label, Button } from './widgets.js'
 import { upgradeEffect, isUpgradeLocked } from '../systems/UpgradeSystem.js'
 import { TROPHY_UNLOCK_AT } from '../config/balance.js'
 
-const TAG_COLOR = { offense: PAL.red, defense: PAL.cyan, income: PAL.green, fans: PAL.purple }
-const TAG_NAME = { offense: 'OFFENSE', defense: 'DEFENSE', income: 'INCOME', fans: 'FANS' }
+import { drawUpgradeIcon, EMOJI } from './UpgradeIcon.js'
 
-export const CARD_W = 178
-export const CARD_H = 118
+// [F] Тег текстом («OFFENSE») в оригинале на карточке не выводится вовсе —
+// тип слота закодирован цветом иконки, см. UpgradeIcon.js.
 
-// Карточка апгрейда: название, тег, уровень, "текущий -> следующий", кнопка покупки.
+export const CARD_W = 172
+export const CARD_H = 138
+
+// Карточка апгрейда: иконка, название в две строки, чип уровня, плашка
+// «текущий → следующий», синяя кнопка Upgrade с вложенным ценником.
 export class UpgradeCard extends Phaser.GameObjects.Container {
   constructor(scene, state, def, x, y, onBuy) {
     super(scene, x, y)
@@ -19,37 +22,43 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
     this.def = def
 
     this.bg = scene.add.graphics()
-    this.tagBg = scene.add.graphics()
 
-    // Название занимает всю ширину и переносится на 2 строки — тег ушёл ниже.
-    this.nameText = label(scene, 11, 9, def.name, { size: 11, bold: true })
-    this.nameText.setWordWrapWidth(CARD_W - 22)
+    this.icon = label(scene, 33, 22, EMOJI[def.key] || '⚙', { size: 20, align: 'center' })
+    // Название занимает оставшуюся ширину и переносится на 2 строки.
+    this.nameText = label(scene, 60, 14, def.name, { size: 13, bold: true })
+    this.nameText.setWordWrapWidth(CARD_W - 76)
     this.nameText.setLineSpacing(-1)
+    this.infoDot = label(scene, CARD_W - 22, 12, 'ⓘ', { size: 14, color: CSS.dim, align: 'center' })
 
-    this.tagText = label(scene, 17, 44, TAG_NAME[def.tag], { size: 8, bold: true })
-    this.lvlText = label(scene, CARD_W - 11, 44, '', { size: 10, color: CSS.muted, align: 'right' })
-    this.effText = label(scene, 11, 60, '', { size: 13, bold: true, color: CSS.accent })
+    this.lvlText = label(scene, 60, 58, '', { size: 11, color: CSS.muted })
+    this.curText = label(scene, CARD_W / 2 - 14, 84, '', { size: 13, bold: true, align: 'right', color: CSS.muted })
+    this.arrow = label(scene, CARD_W / 2, 84, '→', { size: 12, align: 'center', color: CSS.dim })
+    this.nextText = label(scene, CARD_W / 2 + 14, 84, '', { size: 13, bold: true, color: CSS.greenDim })
 
-    this.buyBtn = new Button(scene, CARD_W / 2, CARD_H - 22, CARD_W - 22, 30, '', { size: 13 })
+    this.buyBtn = new Button(scene, CARD_W / 2, CARD_H - 24, CARD_W - 22, 34, 'Upgrade',
+      { size: 13, chip: true })
     this.buyBtn.on('press', () => onBuy(def.key))
 
-    this.add([this.bg, this.tagBg, this.nameText, this.tagText, this.lvlText, this.effText, this.buyBtn])
+    this.add([this.bg, this.icon, this.nameText, this.infoDot, this.lvlText,
+      this.curText, this.arrow, this.nextText, this.buyBtn])
     this.drawFrame()
     scene.add.existing(this)
   }
 
   drawFrame() {
-    this.bg.clear()
-    this.bg.fillStyle(PAL.panel, 1)
-    this.bg.fillRoundedRect(0, 0, CARD_W, CARD_H, 12)
-    this.bg.lineStyle(1, PAL.line, 1)
-    this.bg.strokeRoundedRect(0, 0, CARD_W, CARD_H, 12)
-
-    const color = TAG_COLOR[this.def.tag]
-    this.tagBg.clear()
-    this.tagBg.fillStyle(color, 0.2)
-    this.tagBg.fillRoundedRect(11, 41, this.tagText.width + 12, 15, 7)
-    this.tagText.setColor('#' + color.toString(16).padStart(6, '0'))
+    const g = this.bg
+    g.clear()
+    g.fillStyle(PAL.panel, 1)
+    g.fillRoundedRect(0, 0, CARD_W, CARD_H, 12)
+    g.lineStyle(1, PAL.line, 1)
+    g.strokeRoundedRect(0, 0, CARD_W, CARD_H, 12)
+    // Плашка иконки и плашка эффекта — оба `panelAlt`, как на кадре.
+    g.fillStyle(PAL.panelAlt, 1)
+    g.fillRoundedRect(11, 11, 44, 44, 10)
+    g.fillRoundedRect(11, 74, CARD_W - 22, 28, 8)
+    g.fillRoundedRect(58, 54, 44, 18, 6)
+    // Боевые слоты рисуются вектором, экономические остаются эмодзи.
+    this.icon.setVisible(!drawUpgradeIcon(g, this.def.key, 33, 33))
   }
 
   refresh() {
@@ -62,16 +71,19 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
     this.lvlText.setText('Lv. ' + level)
     const fmt = (v) =>
       eff.unit === '%' ? v.toFixed(0) + '%'
-      : eff.unit === '$/с' ? '$' + formatGain(v) + '/с'
+      : eff.unit === '$/s' ? '$' + formatGain(v) + '/s'
       : formatGain(v) + ' ' + eff.unit
-    this.effText.setText(`${fmt(eff.current)} → ${fmt(eff.next)}`)
+    this.curText.setText(fmt(eff.current))
+    this.nextText.setText(fmt(eff.next))
 
     if (isUpgradeLocked(def, s)) {
-      this.buyBtn.setText(`${s.trophiesEarned} / ${TROPHY_UNLOCK_AT} 🏆`).setEnabled(false)
+      this.buyBtn.setText('Locked').setChip(`${s.trophiesEarned}/${TROPHY_UNLOCK_AT} 🏆`).setEnabled(false)
       return
     }
-    this.buyBtn.setText(def.currency === 'trophy' ? price + ' 🏆' : formatMoney(price))
-    this.buyBtn.setFill(def.currency === 'trophy' ? PAL.gold : PAL.green)
+    this.buyBtn.setText('Upgrade')
+    this.buyBtn.setChip(def.currency === 'trophy' ? price + ' 🏆' : formatMoney(price))
+    this.buyBtn.setFill(def.currency === 'trophy' ? PAL.gold : PAL.accent)
+    this.buyBtn.opts.chipFill = def.currency === 'trophy' ? 0xd2860a : PAL.accentDim
     this.buyBtn.setEnabled(s.canBuy(def.key))
   }
 }

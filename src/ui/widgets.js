@@ -1,11 +1,11 @@
 import Phaser from 'phaser'
-import { PAL, CSS, FONT } from '../config/palette.js'
+import { PAL, CSS, FONT, textOn } from '../config/palette.js'
 
 // Мелкие переиспользуемые примитивы плоского мобильного UI.
 
-export function panel(scene, x, y, w, h, { fill = PAL.panel, radius = 12, stroke = null } = {}) {
+export function panel(scene, x, y, w, h, { fill = PAL.panel, radius = 12, stroke = null, alpha = 1 } = {}) {
   const g = scene.add.graphics()
-  g.fillStyle(fill, 1)
+  g.fillStyle(fill, alpha)
   g.fillRoundedRect(x, y, w, h, radius)
   if (stroke !== null) {
     g.lineStyle(1, stroke, 1)
@@ -28,20 +28,27 @@ export function label(scene, x, y, text, { size = 12, color = CSS.text, align = 
 }
 
 // Кнопка-плашка с закруглением. onClick вызывается только если enabled.
+// `chip` — вложенный ценник справа, как в оригинале: `[ Upgrade    $25 ]`.
 export class Button extends Phaser.GameObjects.Container {
   constructor(scene, x, y, w, h, text, opts = {}) {
     super(scene, x, y)
-    this.w = w
-    this.h = h
-    this.opts = { fill: PAL.green, fillDisabled: PAL.line, radius: 10, size: 13, bold: true, ...opts }
+    this.boxW = w
+    this.boxH = h
+    this.opts = { fill: PAL.accent, fillDisabled: PAL.line, radius: 10, size: 13, bold: true, chip: false, ...opts }
     this.bg = scene.add.graphics()
     this.txt = scene.add.text(0, 0, text, {
       fontFamily: FONT,
       fontSize: this.opts.size + 'px',
-      color: CSS.text,
+      color: this.opts.color || textOn(this.opts.fill),
       fontStyle: this.opts.bold ? 'bold' : 'normal',
     }).setOrigin(0.5)
     this.add([this.bg, this.txt])
+    if (this.opts.chip) {
+      this.chipTxt = scene.add.text(0, 0, '', {
+        fontFamily: FONT, fontSize: (this.opts.size - 1) + 'px', color: CSS.onDark, fontStyle: 'bold',
+      }).setOrigin(0.5)
+      this.add(this.chipTxt)
+    }
     this.setSize(w, h)
     // Hit-area контейнера задаётся от ЛЕВОГО ВЕРХНЕГО угла, даже когда сам
     // контейнер центрирован: Phaser перед проверкой прибавляет к точке
@@ -67,7 +74,9 @@ export class Button extends Phaser.GameObjects.Container {
     scene.add.existing(this)
   }
 
-  setText(text) { this.txt.setText(text); return this }
+  setText(text) { this.txt.setText(text); this.redraw(); return this }
+
+  setChip(text) { this.chipTxt?.setText(text); this.redraw(); return this }
 
   setEnabled(on) {
     if (this.enabled === on) return this
@@ -79,19 +88,30 @@ export class Button extends Phaser.GameObjects.Container {
   setFill(color) { this.opts.fill = color; this.redraw(); return this }
 
   redraw() {
-    const { fill, fillDisabled, radius } = this.opts
+    const { fill, fillDisabled, radius, chip, chipFill } = this.opts
+    const active = fill && this.enabled ? fill : fillDisabled
     this.bg.clear()
-    this.bg.fillStyle(this.enabled ? fill : fillDisabled, 1)
-    this.bg.fillRoundedRect(-this.w / 2, -this.h / 2, this.w, this.h, radius)
-    this.txt.setAlpha(this.enabled ? 1 : 0.45)
+    this.bg.fillStyle(active, 1)
+    this.bg.fillRoundedRect(-this.boxW / 2, -this.boxH / 2, this.boxW, this.boxH, radius)
+    this.txt.setColor(this.opts.color || textOn(active))
+    this.txt.setAlpha(this.enabled ? 1 : 0.55)
+
+    if (!chip || !this.chipTxt) return
+    // Ценник прижат к правому краю, подпись — к левой части остатка.
+    const cw = Math.max(46, this.chipTxt.width + 18)
+    const cx = this.boxW / 2 - cw / 2 - 4
+    this.bg.fillStyle(chipFill || PAL.accentDim, this.enabled ? 1 : 0.5)
+    this.bg.fillRoundedRect(cx - cw / 2, -this.boxH / 2 + 4, cw, this.boxH - 8, radius - 4)
+    this.chipTxt.setPosition(cx, 0).setAlpha(this.enabled ? 1 : 0.55)
+    this.txt.setPosition(-this.boxW / 2 + (this.boxW - cw) / 2, 0)
   }
 }
 
 // Горизонтальная полоса прогресса.
 export class Bar extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, w, h, color = PAL.accent) {
+  constructor(scene, x, y, w, h, color = PAL.accent, track = PAL.panelAlt) {
     super(scene, x, y)
-    this.w = w; this.h = h; this.color = color
+    this.boxW = w; this.boxH = h; this.color = color; this.track = track
     this.g = scene.add.graphics()
     this.add(this.g)
     this.setValue(0)
@@ -101,11 +121,11 @@ export class Bar extends Phaser.GameObjects.Container {
   setValue(ratio) {
     const r = Phaser.Math.Clamp(ratio, 0, 1)
     this.g.clear()
-    this.g.fillStyle(PAL.line, 1)
-    this.g.fillRoundedRect(0, 0, this.w, this.h, this.h / 2)
+    this.g.fillStyle(this.track, 1)
+    this.g.fillRoundedRect(0, 0, this.boxW, this.boxH, this.boxH / 2)
     if (r > 0.01) {
       this.g.fillStyle(this.color, 1)
-      this.g.fillRoundedRect(0, 0, Math.max(this.h, this.w * r), this.h, this.h / 2)
+      this.g.fillRoundedRect(0, 0, Math.max(this.boxH, this.boxW * r), this.boxH, this.boxH / 2)
     }
   }
 }

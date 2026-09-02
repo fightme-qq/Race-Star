@@ -28,7 +28,7 @@ export class CareerModal extends Phaser.GameObjects.Container {
 
     const dim = scene.add.rectangle(0, 0, width, height, 0x000000, 0.78).setOrigin(0).setInteractive()
     const box = panel(scene, bx, by, bw, bh, { fill: PAL.panel, radius: 16, stroke: PAL.line })
-    const title = label(scene, bx + 14, by + 12, 'КАРЬЕРА', { size: 16, bold: true })
+    const title = label(scene, bx + 14, by + 12, 'CAREER', { size: 16, bold: true })
     this.classText = label(scene, bx + bw - 14, by + 14, '', { size: 12, color: CSS.muted, align: 'right' })
 
     this.levelText = label(scene, bx + 14, by + 38, '', { size: 13, bold: true, color: CSS.accent })
@@ -48,7 +48,7 @@ export class CareerModal extends Phaser.GameObjects.Container {
 
     this.resetBtn = new Button(scene, bx + bw / 2 - 74, by + bh - 24, 140, 32, '', { fill: PAL.line, size: 11 })
     this.resetBtn.on('press', () => this.resetSkills())
-    const close = new Button(scene, bx + bw / 2 + 74, by + bh - 24, 140, 32, 'Закрыть', { fill: PAL.panelAlt, size: 12 })
+    const close = new Button(scene, bx + bw / 2 + 74, by + bh - 24, 140, 32, 'Close', { fill: PAL.panelAlt, size: 12 })
     close.on('press', () => this.close())
     this.add([this.resetBtn, close])
 
@@ -63,7 +63,7 @@ export class CareerModal extends Phaser.GameObjects.Container {
     let y = 0
     for (let tier = 0; tier < TIER_NAMES.length; tier++) {
       const req = TIER_REQ[tier]
-      const head = `${TIER_NAMES[tier]}${req ? `  ·  нужно ${req} очк.` : ''}`
+      const head = `${TIER_NAMES[tier]}${req ? `  ·  needs ${req} pts` : ''}`
       this.scroll.inner.add(label(scene, 2, y, head, { size: 11, bold: true, color: CSS.muted }))
       y += 20
       for (const skill of SKILLS.filter((s) => s.tier === tier)) {
@@ -86,10 +86,10 @@ export class CareerModal extends Phaser.GameObjects.Container {
   resetSkills() {
     const back = this.state.resetCareerSkills()
     if (!back) {
-      this.toast?.(`Нужно ${CAREER.resetGems} 💎 и вложенные очки`, PAL.dim)
+      this.toast?.(`Need ${CAREER.resetGems} 💎 and spent points`, PAL.dim)
       return
     }
-    this.toast?.(`Дерево сброшено · +${back} очк.`, PAL.purple)
+    this.toast?.(`Tree reset · +${back} pts`, PAL.purple)
     this.refresh()
     this.onChange?.()
   }
@@ -109,14 +109,14 @@ export class CareerModal extends Phaser.GameObjects.Container {
     this.statsText.setText(`⚔ ${Math.round(stats.off)}   🛡 ${Math.round(stats.def)}`)
     this.xpBar.setValue(toNext === Infinity ? 1 : career.xp / toNext)
     this.xpText.setText(toNext === Infinity
-      ? 'Максимальный уровень'
+      ? 'Max level'
       : `XP ${formatNum(career.xp)} / ${formatNum(toNext)}`)
-    this.pointsText.setText(free > 0 ? `${free} очк. свободно` : `вложено ${pointsSpent(career)}`)
+    this.pointsText.setText(free > 0 ? `${free} pts free` : `${pointsSpent(career)} pts spent`)
     this.pointsText.setColor(free > 0 ? CSS.accent : CSS.dim)
 
     for (const node of this.nodes) node.refresh(career)
 
-    this.resetBtn.setText(`Сброс · ${CAREER.resetGems} 💎`)
+    this.resetBtn.setText(`Reset · ${CAREER.resetGems} 💎`)
     this.resetBtn.setEnabled(s.canResetSkills())
   }
 

@@ -5,7 +5,7 @@ import { panel, label, Button } from '../widgets.js'
 import { SquadView } from './SquadView.js'
 import { PacksView } from './PacksView.js'
 
-const TABS = ['СОСТАВ', 'ПАКИ']
+const TABS = ['SQUAD', 'PACKS']
 
 // Полноэкранная накладка поверх главного экрана: гонка за ней продолжает
 // идти, как в оригинале (вкладки не останавливают заезд).
@@ -22,14 +22,14 @@ export class DriversModal extends Phaser.GameObjects.Container {
 
     const dim = scene.add.rectangle(0, 0, width, height, 0x000000, 0.78).setOrigin(0).setInteractive()
     const box = panel(scene, bx, by, bw, bh, { fill: PAL.panel, radius: 16, stroke: PAL.line })
-    const title = label(scene, bx + 14, by + 12, 'ДРАЙВЕРЫ', { size: 16, bold: true })
+    const title = label(scene, bx + 14, by + 12, 'DRIVERS', { size: 16, bold: true })
     this.gems = label(scene, bx + bw - 14, by + 14, '', { size: 13, bold: true, color: CSS.cyan, align: 'right' })
     this.add([dim, box, title, this.gems])
 
-    this.autoBtn = new Button(scene, bx + 150, by + 22, 86, 26, 'АВТО', { fill: PAL.panelAlt, size: 11 })
+    this.autoBtn = new Button(scene, bx + 150, by + 22, 86, 26, 'AUTO', { fill: PAL.panelAlt, size: 11 })
     this.autoBtn.on('press', () => { this.squad.auto(); this.refresh() })
 
-    const close = new Button(scene, bx + bw / 2, by + bh - 22, 130, 32, 'Закрыть', { fill: PAL.line, size: 12 })
+    const close = new Button(scene, bx + bw / 2, by + bh - 22, 130, 32, 'Close', { fill: PAL.line, size: 12 })
     close.on('press', () => this.close())
     this.add([this.autoBtn, close])
 

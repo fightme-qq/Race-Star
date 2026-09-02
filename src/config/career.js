@@ -59,23 +59,23 @@ export const FX_META = {
 // только 59 — взять всё нельзя, а половина узлов ещё и с минусом.
 export const SKILLS = [
   { id: 'racecraft', tier: 0, name: 'Racecraft', max: 10,
-    desc: 'Общая наработка: статы карьерного драйвера',
+    desc: 'All-round practice: career driver stats',
     per: { careerOff: 3, careerDef: 3 } },
   { id: 'sponsorships', tier: 0, name: 'Sponsorships', max: 10,
-    desc: 'Спонсоры платят за место в команде',
+    desc: 'Sponsors pay for a seat in the team',
     per: { incomePct: 4 } },
   { id: 'crowd_work', tier: 0, name: 'Crowd Work', max: 8,
-    desc: 'Работа на публику — больше фанатов за заезд',
+    desc: 'Play to the crowd — more fans per race',
     per: { fansPct: 6 } },
 
   { id: 'aggressive', tier: 1, name: 'Aggressive Play', max: 8,
-    desc: 'Давить на обгон, жертвуя обороной',
+    desc: 'Push for overtakes, sacrifice defense',
     per: { teamOffPct: 5, teamDefPct: -2 } },
   { id: 'tyre_management', tier: 1, name: 'Tyre Management', max: 8,
-    desc: 'Беречь резину: оборона за счёт темпа',
+    desc: 'Save the rubber: defense over pace',
     per: { teamDefPct: 5, teamOffPct: -1.5 } },
   { id: 'prize_hunter', tier: 1, name: 'Prize Hunter', max: 8,
-    desc: 'Больше призовых за финиш',
+    desc: 'Bigger prize money for finishing',
     per: { prizePct: 7 } },
 
   // Проценты смягчены на Этапе 4. Пока заезд ранжировался по СУММЕ статов,
@@ -83,7 +83,7 @@ export const SKILLS = [
   // ничего. Теперь расклад 75/25 отнимает около четверти очков сезона, и
   // прежние +12/−7 за ранг сделали бы узел миной, а не выбором.
   { id: 'glass_cannon', tier: 2, name: 'Glass Cannon', max: 6,
-    desc: 'Всё в атаку, оборона рассыпается',
+    desc: 'All-out attack, defense falls apart',
     per: { teamOffPct: 9, teamDefPct: -4 } },
   // `Counter Force` — [F] из локализации; на Этапе 3 в дерево не вошёл, потому
   // что модель ранжировала по сумме offense+defense и перенос защиты в атаку
@@ -95,24 +95,24 @@ export const SKILLS = [
   // тем больше он даёт. Ровно поэтому он и лежит рядом с Glass Cannon, который
   // тянет в противоположную сторону.
   { id: 'counter_force', tier: 2, name: 'Counter Force', max: 6,
-    desc: 'Контратака: оборона считается и в атаке',
+    desc: 'Counter-attack: defense counts in offense',
     per: { defToOff: 5 } },
   // Минус смягчён на Этапе 4 по замеру `node tools/sim/skills.js`: узел был
   // единственным в дереве, который проигрывал ПАЧКЕ, а не только жадному боту.
   // Причина арифметическая: фанаты к финалу дают множитель дохода ×13, поэтому
   // −32% фанатов за 8 рангов съедали собственные +56% дохода.
   { id: 'merchandising', tier: 2, name: 'Merchandising', max: 8,
-    desc: 'Мерч приносит деньги, но отпугивает фанатов',
+    desc: 'Merch brings cash but drives fans away',
     per: { incomePct: 7, fansPct: -2 } },
 
   { id: 'veteran', tier: 3, name: 'Veteran Instinct', max: 8,
-    desc: 'Опыт ветерана: крупный прирост статов драйверу',
+    desc: 'Veteran experience: big driver stat boost',
     per: { careerOff: 8, careerDef: 8 } },
   { id: 'team_principal', tier: 3, name: 'Team Principal', max: 6,
-    desc: 'Драйвер рулит командой: деньги вместо темпа',
+    desc: 'Driver runs the team: money over pace',
     per: { incomePct: 10, prizePct: 8, teamOffPct: -6 } },
 ]
 
 export const SKILL_BY_ID = Object.fromEntries(SKILLS.map((s) => [s.id, s]))
 
-export const TIER_NAMES = ['НОВИЧОК', 'ГОНЩИК', 'МАСТЕР', 'ЧЕМПИОН']   // [X]
+export const TIER_NAMES = ['ROOKIE', 'RACER', 'MASTER', 'CHAMPION']   // [X]

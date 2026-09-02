@@ -76,7 +76,27 @@ await step('главный экран', async () => page.evaluate(() => {
   }
 }))
 
-// 2. Карьера: аватар в шапке -> дерево скиллов -> вложение очка меняет силу.
+// 2. Классы: CLASSES в шапке -> покупка класса -> переход в него.
+// Карточки в списке разной высоты, и раскладка пересчитывается на каждом
+// refresh — тап по кнопке после покупки обязан попадать туда, куда смотрит.
+await step('модалка классов', async () => {
+  await page.evaluate(() => window.__game.scene.getScene('Main').state.addCash(1e6))
+  await tapObj('topBar.classBtn')
+  const opened = await page.evaluate(() => !!window.__game.scene.getScene('Main').modal?.cards)
+  await tapObj('modal.cards.1.mainBtn')          // Unlock $40K
+  const unlocked = await page.evaluate(() =>
+    window.__game.scene.getScene('Main').state.classes.stock.unlocked)
+  await tapObj('modal.cards.1.mainBtn')          // теперь это Watch
+  return page.evaluate((o) => {
+    const main = window.__game.scene.getScene('Main')
+    return {
+      ok: o.opened && o.unlocked && main.state.activeClass === 'stock' && !main.modal,
+      active: main.state.activeClass, unlocked: o.unlocked,
+    }
+  }, { opened, unlocked })
+})
+
+// 3. Карьера: аватар в шапке -> дерево скиллов -> вложение очка меняет силу.
 await step('карьера тапами', async () => {
   await page.evaluate(() => {
     // Очки навыка капают за гонки; ждать 12 заездов в тесте незачем.

@@ -15,7 +15,7 @@ export class DriverCard extends Phaser.GameObjects.Container {
   constructor(scene, driver, x, y, w, { onTap = null, badge = '' } = {}) {
     super(scene, x, y)
     this.driver = driver
-    this.w = w
+    this.boxW = w
     this.selected = false
 
     this.bg = scene.add.graphics()
@@ -68,16 +68,20 @@ export class DriverCard extends Phaser.GameObjects.Container {
 
     this.bg.clear()
     this.bg.fillStyle(PAL.panelAlt, 1)
-    this.bg.fillRoundedRect(0, 0, this.w, DCARD_H, 10)
+    this.bg.fillRoundedRect(0, 0, this.boxW, DCARD_H, 10)
     this.bg.lineStyle(this.selected ? 2 : 1, this.selected ? PAL.accent : PAL.line, 1)
-    this.bg.strokeRoundedRect(0, 0, this.w, DCARD_H, 10)
+    this.bg.strokeRoundedRect(0, 0, this.boxW, DCARD_H, 10)
 
+    // [F] Круг рейтинга окрашен по редкости. На светлой теме прежняя заливка
+    // с полупрозрачным фоном давала одинаковый серый у всех редкостей —
+    // кольцо цветное, середина белая, число цветом редкости.
     this.ring.clear()
     this.ring.fillStyle(r.color, 1)
     this.ring.fillCircle(30, 32, 18)
-    this.ring.fillStyle(PAL.bg, 0.55)
+    this.ring.fillStyle(PAL.panel, 1)
     this.ring.fillCircle(30, 32, 14)
     this.rating.setText(String(ratingOf(d)))
+    this.rating.setColor('#' + r.color.toString(16).padStart(6, '0'))
 
     this.nameText.setText(nameOf(d))
     const stars = d.stars ? '  ' + '★'.repeat(Math.min(d.stars, STARS.max)) : ''

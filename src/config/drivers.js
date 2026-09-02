@@ -8,12 +8,12 @@
 // 96/93 (рейтинг 95) и Unique «Macks» рейтинг 150. Остальные ступени
 // расставлены геометрически между стартовой пятёркой (~20) и Legend.
 export const RARITIES = [
-  { id: 'amateur', name: 'Amateur',  color: 0x8a90a6, min: 15, max: 29,  feedXp: 20,   sellSec: 25 },
-  { id: 'semipro', name: 'Semi-Pro', color: 0x2ecc71, min: 30, max: 45,  feedXp: 45,   sellSec: 70 },
-  { id: 'pro',     name: 'Pro',      color: 0x4dd0e1, min: 46, max: 65,  feedXp: 100,  sellSec: 190 },
-  { id: 'allstar', name: 'All-Star', color: 0xa06bff, min: 66, max: 87,  feedXp: 240,  sellSec: 520 },
-  { id: 'legend',  name: 'Legend',   color: 0xffc94d, min: 88, max: 110, feedXp: 600,  sellSec: 1400 },
-  { id: 'unique',  name: 'Unique',   color: 0xff7a1a, min: 130, max: 160, feedXp: 1500, sellSec: 3800 },
+  { id: 'amateur', name: 'Amateur',  color: 0x7b8496, min: 15, max: 29,  feedXp: 20,   sellSec: 25 },
+  { id: 'semipro', name: 'Semi-Pro', color: 0x17a44b, min: 30, max: 45,  feedXp: 45,   sellSec: 70 },
+  { id: 'pro',     name: 'Pro',      color: 0x0d8ecf, min: 46, max: 65,  feedXp: 100,  sellSec: 190 },
+  { id: 'allstar', name: 'All-Star', color: 0x8a3ff0, min: 66, max: 87,  feedXp: 240,  sellSec: 520 },
+  { id: 'legend',  name: 'Legend',   color: 0xf9a31b, min: 88, max: 110, feedXp: 600,  sellSec: 1400 },
+  { id: 'unique',  name: 'Unique',   color: 0xe8232b, min: 130, max: 160, feedXp: 1500, sellSec: 3800 },
 ]
 
 export const RARITY_BY_ID = Object.fromEntries(RARITIES.map((r) => [r.id, r]))

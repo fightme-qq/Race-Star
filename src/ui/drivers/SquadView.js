@@ -22,7 +22,7 @@ export class SquadView extends Phaser.GameObjects.Container {
     super(scene, 0, 0)
     this.scene_ = scene
     this.state = state
-    this.w = w
+    this.boxW = w
     this.onChange = onChange
     this.toast = toast
     this.targetUid = null
@@ -33,7 +33,7 @@ export class SquadView extends Phaser.GameObjects.Container {
     this.add([this.scroll, this.hint])
 
     const bw = (w - 3 * GAP) / 4
-    this.actions = ['В состав', 'Скормить', '★ Merge', 'Продать'].map((text, i) => {
+    this.actions = ['Add to Squad', 'Feed', '★ Merge', 'Sell'].map((text, i) => {
       const btn = new Button(scene, x + (bw + GAP) * i + bw / 2, y + h - BAR_H + 26, bw, 32, text,
         { size: 11, fill: i === 3 ? PAL.line : PAL.green })
       btn.on('press', () => this.act(i))
@@ -60,10 +60,10 @@ export class SquadView extends Phaser.GameObjects.Container {
     for (const d of squad) y = this.card(d, y, true)
 
     const reserves = this.roster.sortedReserves()
-    y = this.section(`РЕЗЕРВ (${reserves.length})`, y + 6)
+    y = this.section(`RESERVE (${reserves.length})`, y + 6)
     if (!reserves.length) {
-      this.scroll.inner.add(label(this.scene_, this.w / 2, y + 8,
-        'Пусто. Драйверы приходят из паков.', { size: 11, color: CSS.dim, align: 'center' }))
+      this.scroll.inner.add(label(this.scene_, this.boxW / 2, y + 8,
+        'Empty. Drivers come from packs.', { size: 11, color: CSS.dim, align: 'center' }))
       y += 34
     }
     for (const d of reserves) y = this.card(d, y, false)
@@ -79,7 +79,7 @@ export class SquadView extends Phaser.GameObjects.Container {
   }
 
   card(driver, y, isSquad) {
-    const c = new DriverCard(this.scene_, driver, 0, y, this.w, {
+    const c = new DriverCard(this.scene_, driver, 0, y, this.boxW, {
       onTap: (d) => {
         if (isSquad) this.targetUid = d.uid
         else this.pickUid = this.pickUid === d.uid ? null : d.uid
@@ -102,7 +102,7 @@ export class SquadView extends Phaser.GameObjects.Container {
       const slot = this.roster.squadUids(this.classId).indexOf(this.targetUid)
       this.roster.assign(this.classId, slot < 0 ? 0 : slot, pick.uid)
       this.targetUid = pick.uid
-      this.toast(`${nameOf(pick)} в составе`, PAL.green)
+      this.toast(`${nameOf(pick)} in squad`, PAL.green)
     } else if (index === 1) {
       const xp = feedXpOf(pick)
       const res = this.roster.train(target.uid, [pick.uid])
@@ -112,7 +112,7 @@ export class SquadView extends Phaser.GameObjects.Container {
       this.toast(`${nameOf(target)} · +1 ★`, PAL.gold)
     } else {
       const cash = this.state.sellDriver(pick.uid)
-      this.toast('Продан за ' + formatMoney(cash), PAL.muted)
+      this.toast('Sold for ' + formatMoney(cash), PAL.muted)
     }
     this.pickUid = null
     this.build()
@@ -122,8 +122,8 @@ export class SquadView extends Phaser.GameObjects.Container {
   auto() {
     const res = this.roster.autoManage(this.classId)
     this.toast(res?.trained?.xp
-      ? `Авто: состав обновлён, +${res.trained.xp} XP`
-      : 'Авто: состав обновлён', PAL.accent)
+      ? `Auto: squad updated, +${res.trained.xp} XP`
+      : 'Auto: squad updated', PAL.accent)
     this.pickUid = null
     this.build()
     this.onChange?.()
@@ -143,12 +143,12 @@ export class SquadView extends Phaser.GameObjects.Container {
     this.actions[2].setEnabled(!!(pick && target && canMerge(target, pick)))
     this.actions[3].setEnabled(!!pick)
     this.actions[3].setText(pick
-      ? 'Продать ' + formatMoney(this.state.incomePerSec * RARITY_BY_ID[pick.rarity].sellSec)
-      : 'Продать')
+      ? 'Sell ' + formatMoney(this.state.incomePerSec * RARITY_BY_ID[pick.rarity].sellSec)
+      : 'Sell')
 
     this.hint.setText(pick
       ? `${nameOf(pick)} → ${target ? nameOf(target) : '—'}`
-      : 'Тапни драйвера из резерва — снизу появятся действия')
+      : 'Tap a reserve driver — actions appear below')
   }
 
   destroy(fromScene) {
