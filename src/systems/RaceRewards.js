@@ -8,15 +8,27 @@ export function applyRaceResult(state, position) {
   const idx = position - 1
   const fx = state.careerFx
 
-  // Приз и бонус за победу — в СЕКУНДАХ дохода: так они не отстают от
-  // экономики на порядки к середине игры.
+  // Приз за место — в СЕКУНДАХ дохода [X]: так он не отстаёт от экономики на
+  // порядки к середине игры. Поверх — плоские выплаты экономической ветки [F]:
+  // Ticket Marketing и Parking платят за каждую гонку, Victory Celebrations
+  // только за победу. Они не масштабируются ничем и намеренно: в оригинале это
+  // ранняя игра (Parking Lv.8 = $120 за гонку при пассиве $60), к середине их
+  // обгоняет доход от фанатов.
   const seconds = ECONOMY.prizeSeconds * ECONOMY.placePrize[idx]
-    + (position === 1 ? state.agg.winBonusSec : 0)
-  const prize = state.incomePerSec * seconds * Math.max(0, 1 + fx.prizePct / 100)
-  state.addCash(prize)
+  const prize = state.incomePerSec * seconds
+    * Math.pow(ECONOMY.leaguePrizeMult, state.cls.league)
+    * Math.max(0, 1 + fx.prizePct / 100)
+  const flat = state.agg.cashPerRace + (position === 1 ? state.agg.cashPerWin : 0)
+  state.addCash(prize + flat)
 
-  const fans = Math.round((ECONOMY.fansPerRace + state.agg.fansPerRace)
-    * ECONOMY.placeFans[idx] * Math.max(0, 1 + fx.fansPct / 100))
+  // Фанаты — единственный источник роста дохода. Множитель класса сидит здесь
+  // (на доходе его нет: свежий класс на кадре показывает $1/с при любом
+  // прогрессе игрока), а вот лига — намеренно НЕ здесь, см. ECONOMY: она
+  // умножает призовые, иначе экономика уходит в двойную экспоненту.
+  const fans = Math.round(state.agg.fansPerRace
+    * ECONOMY.placeFans[idx]
+    * Math.pow(ECONOMY.classFanMult, state.clsDef.index)
+    * Math.max(0, 1 + fx.fansPct / 100))
   state.cls.fans += fans
 
   // «Each race gives Career XP for that class» [F] — XP идёт активному классу
@@ -49,5 +61,5 @@ export function applyRaceResult(state, position) {
     state.cls.seasonScore = 0
   }
 
-  return { position, prize, fans, gems, seasonEnded, promoted, careerXp, careerLevels }
+  return { position, prize: prize + flat, fans, gems, seasonEnded, promoted, careerXp, careerLevels }
 }

@@ -69,10 +69,12 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
     const price = s.priceOf(def.key)
 
     this.lvlText.setText('Lv. ' + level)
+    // Формат строки эффекта — с кадров: боевые «16% → 18%», денежные
+    // «+$6 → +$9», Grandstands без знака и единицы — «10 → 15».
     const fmt = (v) =>
       eff.unit === '%' ? v.toFixed(0) + '%'
-      : eff.unit === '$/s' ? '$' + formatGain(v) + '/s'
-      : formatGain(v) + ' ' + eff.unit
+      : eff.unit === '$' ? '+$' + formatGain(v)
+      : formatGain(v)
     this.curText.setText(fmt(eff.current))
     this.nextText.setText(fmt(eff.next))
 

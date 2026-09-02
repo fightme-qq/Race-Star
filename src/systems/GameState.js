@@ -124,18 +124,23 @@ export class GameState {
   get defense() { return this.power.def }
   get teamPower() { const p = this.power; return p.off + p.def }
 
-  // Три множителя дохода, каждый со своей формой роста — см. ECONOMY.
-  get fanMultiplier() { return 1 + this.cls.fans / ECONOMY.fansPerFanBonus }
-  get leagueMultiplier() { return Math.pow(ECONOMY.leagueIncomeMult, this.cls.league) }
-  get classMultiplier() { return Math.pow(ECONOMY.classIncomeMult, this.clsDef.index) }
+  // Доход — ЭТО фанаты (см. ECONOMY): на кадрах двух игр одного движка
+  // "Income /s" совпадает с фанатами, делёнными на 1188, а свежий класс при
+  // любом прогрессе игрока показывает $1/с. Поэтому здесь нет ни множителя
+  // лиги, ни множителя класса — они переехали на приток фанатов в RaceRewards.
+  get fanIncome() { return this.cls.fans / ECONOMY.fansPerDollar }
+
+  // Множитель фанатов к «голому» доходу — для интерфейса и оценщика: во
+  // сколько раз накопленные фанаты подняли доход над стартовым полом.
+  get fanMultiplier() { return Math.max(1, this.fanIncome / ECONOMY.baseIncomePerSec) }
 
   get incomePerSec() {
-    const base = ECONOMY.baseIncomePerSec + this.agg.incomePerSec
     const boost = this.adBoostActive ? AD_BOOST.multiplier : 1
-    // Скиллы дохода (Sponsorships, Merchandising, Team Principal) — ещё один
-    // множитель, а не слагаемое: иначе к середине игры они не видны.
+    // Скиллы дохода (Sponsorships, Merchandising, Team Principal) — множитель,
+    // а не слагаемое: иначе к середине игры они не видны. Узел оригинала
+    // «−30% Income in Monster Truck» [F] работает так же.
     const career = Math.max(0.05, 1 + this.careerFx.incomePct / 100)
-    return base * this.fanMultiplier * this.leagueMultiplier * this.classMultiplier * boost * career
+    return Math.max(ECONOMY.baseIncomePerSec, this.fanIncome) * boost * career
   }
 
   get adBoostActive() { return this.adBoostUntil > Date.now() }

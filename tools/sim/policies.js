@@ -64,6 +64,11 @@ const HORIZON_RACES = 850
 // раскладка «фанаты вперёд» обыгрывала его на 63% ($135B против $83B).
 const CAREER_HORIZON_RACES = 25000
 
+// Оценщик пересобран на шаге 2 вместе с экономикой. Раньше он делил доход на
+// множитель лиги и поднимал обратно до достижимой — теперь ни лига, ни класс
+// на доходе не сидят, они умножают ПРИТОК ФАНАТОВ. Значит и ценность боевого
+// слота меряется иначе: он поднимает не доход напрямую, а скорость набора
+// фанатов — и через горизонт превращается в доход.
 export function ratePerSec(state, horizonRaces = HORIZON_RACES) {
   const p = state.power
   const shape = racerShape(p.off, p.def)
@@ -71,23 +76,33 @@ export function ratePerSec(state, horizonRaces = HORIZON_RACES) {
   const fx = state.careerFx
   let prizeShare = 0
   let fanPlace = 0
+  let winShare = 0
   for (let k = 0; k < 10; k++) {
     prizeShare += dist[k] * ECONOMY.placePrize[k]
     fanPlace += dist[k] * ECONOMY.placeFans[k]
   }
+  winShare = dist[0]
   // Проценты карьерных скиллов к призу и фанатам — здесь же. Оценщик, который
   // их не видит, объявил бы Prize Hunter и Crowd Work бесполезными: ровно та
   // слепота, из-за которой roiGreedy когда-то не покупал бой и лиги.
-  prizeShare *= (ECONOMY.prizeSeconds / RACE.durationSec) * (1 + fx.prizePct / 100)
-
-  const fansPerRace = (ECONOMY.fansPerRace + state.agg.fansPerRace) * fanPlace
-    * (1 + fx.fansPct / 100)
-  const projFans = state.cls.fans + fansPerRace * horizonRaces / 2
-  const fanScale = (1 + projFans / ECONOMY.fansPerFanBonus) / state.fanMultiplier
-
-  const atLeagueZero = state.incomePerSec / state.leagueMultiplier
+  // Лига засчитывается достижимая, а не текущая: боевой апгрейд окупается тем,
+  // куда он доведёт по лестнице, а ступенька приходит через сезон. Множитель
+  // лиги сидит на призовых (см. ECONOMY), поэтому и здесь он множит их.
   const reach = Math.max(state.cls.league, reachableLeague(shape))
-  return atLeagueZero * fanScale * Math.pow(ECONOMY.leagueIncomeMult, reach) * (1 + prizeShare)
+  prizeShare *= (ECONOMY.prizeSeconds / RACE.durationSec)
+    * Math.pow(ECONOMY.leaguePrizeMult, reach) * (1 + fx.prizePct / 100)
+
+  const fansPerRace = state.agg.fansPerRace * fanPlace
+    * Math.pow(ECONOMY.classFanMult, state.clsDef.index)
+    * (1 + fx.fansPct / 100)
+  // Средний доход за горизонт: фанаты копятся линейно, отсюда H/2.
+  const projFans = state.cls.fans + fansPerRace * horizonRaces / 2
+  const career = Math.max(0.05, 1 + fx.incomePct / 100)
+  const income = Math.max(ECONOMY.baseIncomePerSec, projFans / ECONOMY.fansPerDollar) * career
+
+  // Плоские выплаты ветки — деньги за гонку, приводим к секунде.
+  const flat = (state.agg.cashPerRace + winShare * state.agg.cashPerWin) / RACE.durationSec
+  return income * (1 + prizeShare) + flat
 }
 
 export function expectedPlace(state) {

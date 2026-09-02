@@ -19,9 +19,16 @@ export function combatPrice(base, curveId, level) {
   return Math.round(base * mult)
 }
 
+// Цена экономического слота задаётся ЯКОРЕМ — наблюдённой ценой на известном
+// уровне, а не базой: у Parking и Grandstands кадра с Lv.0 нет. Так измерение
+// остаётся выполненным при любом pg, который выберет перебор.
+export function economyPrice(def, level) {
+  return Math.round(def.anchor.price * Math.pow(def.pg, level - def.anchor.level))
+}
+
 export function upgradePrice(def, level) {
   if (def.kind === 'combat') return combatPrice(def.base, def.curve, level)
-  if (def.kind === 'economy') return Math.round(def.base * Math.pow(def.pg, level))
+  if (def.kind === 'economy') return economyPrice(def, level)
   return def.trophyCost
 }
 
@@ -30,8 +37,14 @@ export function upgradeEffect(def, level) {
   if (def.kind === 'combat' || def.kind === 'trophy') {
     return { current: def.step * level, next: def.step * (level + 1), unit: '%' }
   }
-  // Экономика: прибавка плоская, копится линейно по уровням.
-  return { current: def.gain * level, next: def.gain * (level + 1), unit: def.unit }
+  // Экономика: плоская прибавка плюс flat, который слот даёт уже на Lv.0
+  // (Ticket Marketing на кадре показывает "+$6 -> +$9" при Lv.0, Grandstands —
+  // "10 -> 15"). Поэтому нулевой уровень здесь НЕ пропускается.
+  return {
+    current: def.flat + def.gain * level,
+    next: def.flat + def.gain * (level + 1),
+    unit: def.unit,
+  }
 }
 
 export function isUpgradeLocked(def, state) {
@@ -40,12 +53,12 @@ export function isUpgradeLocked(def, state) {
 
 // Свод по классу: суммарные проценты и плоские прибавки.
 export function aggregateClass(classId, levels) {
-  const out = { offensePct: 0, defensePct: 0, incomePerSec: 0, fansPerRace: 0, winBonusSec: 0 }
+  const out = { offensePct: 0, defensePct: 0, cashPerRace: 0, cashPerWin: 0, fansPerRace: 0 }
   for (const def of CLASS_BY_ID[classId].upgrades) {
     const level = levels[def.key] || 0
-    if (level === 0) continue
     const eff = upgradeEffect(def, level).current
     if (def.kind === 'combat' || def.kind === 'trophy') {
+      if (level === 0) continue
       if (def.tag === 'offense') out.offensePct += eff
       else out.defensePct += eff
     } else {
