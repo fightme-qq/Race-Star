@@ -53,8 +53,15 @@ export class RaceController {
     }
   }
 
+  // Места соперников по их индексу в пелотоне: racer.id === i + 1 — это тот же
+  // индекс, что в OPPONENT_SPREAD, то есть таблица лиги ведёт счёт ровно тем
+  // девяти командам, которые реально ехали заезд, а не абстрактным строкам.
+  opponentOrder() {
+    return this.sim.racers.slice(1).map((r) => r.position)
+  }
+
   finish() {
-    const result = applyRaceResult(this.state, this.sim.player.position)
+    const result = applyRaceResult(this.state, this.sim.player.position, this.opponentOrder())
     this.state.save()
     this.onFinish(result)
   }

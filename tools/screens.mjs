@@ -15,6 +15,11 @@ export const SCREENS = {
   career: { open: 'openCareer', cash: 1e6 },
   drivers: { open: 'openDrivers', cash: 1e6 },
   classes: { open: 'openClasses', cash: 1e6 },
+  // Кадра оригинала для вкладки лиг нет (её нет ни на одном из 42), поэтому
+  // экран снимается только для `shot`: проверить наложения и обрезку маской.
+  // `races` прокатывает сезон заранее — на пустой таблице все нули, и ни
+  // сортировка, ни подсветка строки игрока не проверяются.
+  leagues: { open: 'openLeagues', cash: 1e6, races: 14 },
 }
 
 export async function launch() {
@@ -44,6 +49,21 @@ export async function goto(page, screen) {
     main.state.gainCareerXp(9000)
     main.state.gems = 500
     if (c.cash) main.state.addCash(c.cash)
+    // Прокатываем заезды тем же кодом, что игра: место берём из настоящей
+    // симуляции, места соперников — из неё же, иначе таблица покажет расклад,
+    // которого в игре не бывает.
+    for (let i = 0; i < (c.races || 0); i++) {
+      const race = main.race
+      while (!race.sim.finished) race.sim.step(1)
+      race.finish()
+      race.start()
+    }
+    // Попап последнего заезда живёт 2.6 с и на кадре лёг бы поверх окна —
+    // в игре его при открытой модалке не показывают вовсе.
+    // Гасить одним setAlpha мало: твин появления запущен в этом же кадре и на
+    // следующем вернёт альфу обратно в 1.
+    main.tweens.killTweensOf(main.finish)
+    main.finish.setAlpha(0)
     if (c.open) main[c.open]()
   }, cfg)
   await wait(page, 800)

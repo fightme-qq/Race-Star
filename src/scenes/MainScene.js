@@ -11,6 +11,7 @@ import { FinishPopup } from '../ui/FinishPopup.js'
 import { ClassesModal } from '../ui/ClassesModal.js'
 import { DriversModal } from '../ui/drivers/DriversModal.js'
 import { CareerModal } from '../ui/career/CareerModal.js'
+import { LeaguesModal } from '../ui/leagues/LeaguesModal.js'
 import { formatMoney } from '../utils/format.js'
 
 const NAV_H = 70
@@ -44,6 +45,7 @@ export class MainScene extends Phaser.Scene {
     this.nav = new BottomNav(this, height - NAV_H, width, (i, tab) => {
       if (i === 0) { this.nav.setActive(0); return }
       if (i === 2) { this.openDrivers(); return }
+      if (i === 3) { this.openLeagues(); return }
       this.toasts.show(tab.title + ' — coming in a later stage', PAL.muted)
     })
 
@@ -86,6 +88,7 @@ export class MainScene extends Phaser.Scene {
     this.modal = new ClassesModal(this, this.state, {
       toast: (text, color) => this.toasts.show(text, color),
       onClose: () => { this.grid.locked = false; this.modal = null },
+      onLeagues: (id) => this.openLeagues(id),
       onPick: (id) => {
         this.state.activeClass = id
         this.state.save()
@@ -113,6 +116,18 @@ export class MainScene extends Phaser.Scene {
     })
   }
 
+  openLeagues(classId) {
+    if (this.modal?.active) return
+    this.grid.locked = true
+    this.nav.setActive(3)
+    this.modal = new LeaguesModal(this, this.state, {
+      classId,
+      toast: (text, color) => this.toasts.show(text, color),
+      onChange: () => { this.state.save(); this.refreshUI() },
+      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
+    })
+  }
+
   openCareer() {
     if (this.modal?.active) return
     this.grid.locked = true
@@ -131,7 +146,10 @@ export class MainScene extends Phaser.Scene {
   onRaceFinish(res) {
     // Итог заезда — в попап, а не в общий поток тостов: там он тонул среди
     // сообщений хода гонки. В оригинале это отдельное окно поверх карты.
-    this.finish.show(res, this.state.gemsToday)
+    // Но при открытой модалке попап молчит: он лежит на глубине 160, то есть
+    // выше окна, и накрывал бы таблицу лиги каждые 60 секунд. Награды при этом
+    // начисляются как обычно, а таблица обновляется прямо под курсором.
+    if (!this.modal?.active) this.finish.show(res, this.state.gemsToday)
     if (res.fans > 0) this.racePanel.popFans(this.state.cls.fans, res.fans)
     if (res.careerLevels > 0) {
       this.toasts.show(`Career Lv. ${this.state.career.level} · +${res.careerLevels} pts`, PAL.cyan)

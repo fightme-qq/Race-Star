@@ -1,10 +1,16 @@
 import { ECONOMY, SEASON, GEMS, LEAGUES } from '../config/balance.js'
 import { CAREER } from '../config/career.js'
+import { recordRivals, archiveSeason } from './SeasonSystem.js'
 
 // Начисление за финиш — чистая функция от состояния и места.
 // Вынесено из RaceController, чтобы балансный прогон (tools/sim) считал
 // награды ТЕМ ЖЕ кодом, что и живая игра, а не своей копией формул.
-export function applyRaceResult(state, position) {
+//
+// `order` — места девяти соперников (order[i] для соперника с индексом i).
+// Нужен только таблице лиги; стенд его не передаёт и таблицу не ведёт. Ведение
+// таблицы стоит здесь, а не в контроллере, намеренно: сброс сезона живёт в этой
+// функции, и таблица обязана обнуляться ровно в тот же момент, что счёт.
+export function applyRaceResult(state, position, order = null) {
   const idx = position - 1
   const fx = state.careerFx
 
@@ -41,9 +47,11 @@ export function applyRaceResult(state, position) {
     gems = state.addGems(GEMS.perWin)
     state.addTrophies(1)
     state.cls.seasonScore += SEASON.winPoints
+    state.cls.seasonWins = (state.cls.seasonWins || 0) + 1
   } else if (position <= 3) {
     state.cls.seasonScore += SEASON.podiumPoints
   }
+  recordRivals(state.cls, order)
 
   state.cls.seasonRaces++
   let seasonEnded = false
@@ -51,11 +59,15 @@ export function applyRaceResult(state, position) {
   if (state.cls.seasonRaces >= SEASON.races) {
     seasonEnded = true
     // "Win the season to advance" — повышение при достаточном счёте.
-    if (state.cls.seasonScore >= SEASON.races * SEASON.promoteRatio
-        && state.cls.league < LEAGUES.length - 1) {
-      state.cls.league++
-      promoted = true
+    promoted = state.cls.seasonScore >= SEASON.races * SEASON.promoteRatio
+      && state.cls.league < LEAGUES.length - 1
+    // Строку в историю пишем ДО повышения: в ней стоит лига, в которой сезон
+    // отъезжен, иначе игрок увидит, что выиграл лигу, в которую только попал.
+    if (order) {
+      archiveSeason(state.cls, state.teamName, state.activeClass, promoted,
+        state.relativePowerOf(state.activeClass))
     }
+    if (promoted) state.cls.league++
     state.cls.season++
     state.cls.seasonRaces = 0
     state.cls.seasonScore = 0

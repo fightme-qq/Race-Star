@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../config/palette.js'
 import { RACE_CLASSES } from '../config/classes.js'
-import { panel, label, Button } from './widgets.js'
+import { panel, label, Button, dimmer } from './widgets.js'
 import { ScrollView } from './ScrollView.js'
 import { ClassCard } from './classes/ClassCard.js'
 
@@ -11,16 +11,16 @@ const GAP = 12
 // правом верхнем углу, вертикальный список карточек во всю ширину. Сетки 2×3,
 // которая была у нас до шага 1, в оригинале нет — карточка слишком высокая.
 export class ClassesModal extends Phaser.GameObjects.Container {
-  constructor(scene, state, { onPick, onUnlock, onClose, toast }) {
+  constructor(scene, state, { onPick, onUnlock, onClose, onLeagues, toast }) {
     super(scene, 0, 0)
     this.state = state
     this.onClose = onClose
+    this.onLeagues = onLeagues
     this.toast = toast
     this.setDepth(100)
 
     const { width, height } = scene.scale
-    const dim = scene.add.rectangle(0, 0, width, height, 0x000000, 0.45).setOrigin(0).setInteractive()
-    dim.on('pointerup', () => this.close())
+    const dim = dimmer(scene, width, height, () => this.close())
 
     const bx = 10, by = 96, bw = width - 20, bh = height - 170
     // Лист кладём В КОНТЕЙНЕР, а не просто на сцену: у модалки глубина 100, а
@@ -39,8 +39,11 @@ export class ClassesModal extends Phaser.GameObjects.Container {
         onPick: (id) => { onPick(id); this.close() },
         onUnlock: (id) => { if (onUnlock(id)) this.refresh() },
         onRename: (id) => this.rename(id),
-        onAdvance: () => this.toast?.('League standings arrive with the Leagues tab', PAL.muted),
-        onDetails: () => this.toast?.('Class details arrive with the Leagues tab', PAL.muted),
+        // Обе кнопки ведут на вкладку лиг: `Advance` — сразу к повышению,
+        // `Details` — к таблице сезона. Забирать повышение прямо с карточки
+        // нельзя: игрок не увидит, откуда взялись очки и куда он поднялся.
+        onAdvance: (id) => this.openLeagues(id),
+        onDetails: (id) => this.openLeagues(id),
       })
       this.scroll.inner.add(card)
       return card
@@ -49,6 +52,12 @@ export class ClassesModal extends Phaser.GameObjects.Container {
 
     this.refresh()
     scene.add.existing(this)
+  }
+
+  openLeagues(classId) {
+    this.onClose?.()
+    this.destroy(true)
+    this.onLeagues?.(classId)
   }
 
   // [F] Карандаш в поле Team Name. Ввод текста в Phaser своего поля не имеет,

@@ -119,6 +119,32 @@ await step('карьера тапами', async () => {
   }, before)
 })
 
+// 3a. Лиги: вкладка 4 -> таблица сезона на 10 строк -> Advance поднимает лигу.
+// Кнопку жмём настоящим тапом: она включается только при взятом пороге очков,
+// то есть проверяется и раскладка, и условие.
+await step('вкладка лиг', async () => {
+  await tapObj('nav.items.3.zone')
+  const rows = await page.evaluate(() =>
+    window.__game.scene.getScene('Main').modal?.standings?.rows?.length ?? 0)
+  const before = await page.evaluate(() => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    // Порог берётся сезоном; в тесте выдаём очки, иначе ждать 15 заездов.
+    s.cls.seasonScore = s.seasonTarget
+    main.modal.refresh()
+    return { league: s.cls.league, seasons: s.cls.history.length }
+  })
+  await tapObj('modal.header.advance')
+  return page.evaluate((b) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const ok = b.rows === 10 && s.cls.league === b.league + 1
+      && s.cls.seasonScore === 0 && s.cls.history.length === b.seasons + 1
+    main.modal.close()
+    return { ok, league: s.cls.league, rows: b.rows, was: b }
+  }, { ...before, rows })
+})
+
 // 3. Открываем драйверов тапом по нижней панели (третья вкладка).
 await step('вкладка драйверов', async () => {
   await tapObj('nav.items.2.zone')
@@ -190,7 +216,11 @@ await step('сейв и закрытие', async () => {
   })
   const before = await page.evaluate(() => {
     const s = window.__game.scene.getScene('Main').state
-    return { drivers: s.roster.drivers.length, power: Math.round(s.teamPower), skills: s.career.spent.racecraft }
+    return {
+      drivers: s.roster.drivers.length, power: Math.round(s.teamPower),
+      skills: s.career.spent.racecraft,
+      league: s.cls.league, seasons: s.cls.history.length,
+    }
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__game?.scene?.getScene('Main')?.state, { timeout: 30000 })
@@ -199,9 +229,11 @@ await step('сейв и закрытие', async () => {
     const s = window.__game.scene.getScene('Main').state
     return {
       ok: s.roster.drivers.length === b.drivers && Math.round(s.teamPower) === b.power
-        && s.career.spent.racecraft === b.skills,
+        && s.career.spent.racecraft === b.skills
+        && s.cls.league === b.league && s.cls.history.length === b.seasons,
       drivers: s.roster.drivers.length, power: Math.round(s.teamPower),
-      skills: s.career.spent.racecraft, was: b,
+      skills: s.career.spent.racecraft,
+      league: s.cls.league, seasons: s.cls.history.length, was: b,
     }
   }, before)
 })

@@ -1,10 +1,13 @@
 import { RACE_CLASSES, CLASS_BY_ID, getUpgrade } from '../config/classes.js'
-import { ECONOMY, LEAGUES, GEMS, CLASS_UNLOCK_PRICES, AD_BOOST } from '../config/balance.js'
+import { ECONOMY, LEAGUES, GEMS, SEASON, CLASS_UNLOCK_PRICES, AD_BOOST } from '../config/balance.js'
 import { PACK_BY_ID, RARITY_BY_ID } from '../config/drivers.js'
 import { CAREER } from '../config/career.js'
 import { aggregateClass, upgradePrice, isUpgradeLocked } from './UpgradeSystem.js'
 import { Roster } from './Roster.js'
 import { placeDistOf } from './RaceModel.js'
+import {
+  freshStandings, standingsRows, playerRank, promotionTarget, archiveSeason,
+} from './SeasonSystem.js'
 import { SaveSystem } from './SaveSystem.js'
 import {
   freshCareer, careerEffects, careerStats, addCareerXp,
@@ -27,6 +30,9 @@ const freshClass = (index) => ({
   season: 1,
   seasonScore: 0,
   seasonRaces: 0,
+  seasonWins: 0,
+  standings: freshStandings(),   // таблица лиги: очки и победы девяти соперников
+  history: [],                   // `Season History` [E], последние 8 сезонов
   adBoostsUsed: 0,
   career: freshCareer(),   // карьерный драйвер у каждого класса свой [F]
 })
@@ -68,6 +74,56 @@ export class GameState {
   get teamName() { return this.cls.teamName || 'Your Team' }
   set teamName(v) { this.cls.teamName = String(v).slice(0, 18).trim() || 'Your Team' }
   leagueOf(classId) { return LEAGUES[Math.min(this.classes[classId].league, LEAGUES.length - 1)] }
+  nextLeagueOf(classId) { return LEAGUES[this.classes[classId].league + 1] || null }
+
+  // --- Лига и сезон ------------------------------------------------------
+  get seasonTarget() { return promotionTarget() }
+  // Именно seasonLength, а не seasonRaces: у класса есть поле cls.seasonRaces —
+  // счётчик отъезженных, и два почти одинаковых имени рядом читались бы как одно.
+  get seasonLength() { return SEASON.races }
+
+  // Сила игрока относительно лиги — в тех же единицах, что OPPONENT_SPREAD:
+  // соперник i имеет силу leaguePower * spread[i], а у игрока это off + def.
+  relativePowerOf(classId) {
+    const p = this.powerOf(classId)
+    return (p.off + p.def) / this.leagueOf(classId).power
+  }
+
+  standingsOf(classId) {
+    const cls = this.classes[classId]
+    return standingsRows(cls, cls.teamName, classId, this.relativePowerOf(classId))
+  }
+
+  rankOf(classId) {
+    const cls = this.classes[classId]
+    return playerRank(cls, cls.teamName, classId, this.relativePowerOf(classId))
+  }
+
+  // [F] Кнопка `Advance` рядом со строкой `Current League`. Что она делает в
+  // оригинале, разбор не установил (см. FINDINGS): подпись `Win the season to
+  // advance` [E] говорит только о том, что повышение заслуживают сезоном.
+  // У нас это «забрать повышение досрочно»: порог счёта уже взят, ждать
+  // оставшиеся заезды незачем. Правило повышения при этом ОДНО и то же, что в
+  // RaceRewards, — вторая формула тут означала бы два разных условия победы
+  // в сезоне. Влияние на баланс мало: порог 43 очка из 60 возможных берётся
+  // на 15-18-й гонке из 20, то есть досрочный клик экономит хвост сезона.
+  canAdvance(classId) {
+    const cls = this.classes[classId]
+    return cls.unlocked
+      && cls.league < LEAGUES.length - 1
+      && cls.seasonScore >= SEASON.races * SEASON.promoteRatio
+  }
+
+  advanceLeague(classId) {
+    if (!this.canAdvance(classId)) return false
+    const cls = this.classes[classId]
+    archiveSeason(cls, cls.teamName, classId, true, this.relativePowerOf(classId))
+    cls.league++
+    cls.season++
+    cls.seasonRaces = 0
+    cls.seasonScore = 0
+    return true
+  }
 
   // --- Карьерный драйвер -------------------------------------------------
   get career() { return this.cls.career }

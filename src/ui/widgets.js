@@ -27,6 +27,22 @@ export function label(scene, x, y, text, { size = 12, color = CSS.text, align = 
   return t
 }
 
+// Затемнение под модалкой. Закрывает по тапу МИМО окна, но только если и
+// нажатие, и отпускание случились уже при открытой модалке.
+//
+// Наивный `dim.on('pointerup', close)` работает, пока модалку открывает Button:
+// тот сам срабатывает на отпускании, и к моменту создания затемнения pointerup
+// уже прошёл. Но вкладки нижнего меню открывают экран по `pointerdown` — и
+// отпускание того же самого тапа прилетало в свежесозданное затемнение,
+// закрывая окно в тот же кадр. Экран лиг из-за этого не открывался вообще.
+export function dimmer(scene, width, height, onClose) {
+  const rect = scene.add.rectangle(0, 0, width, height, 0x000000, 0.45).setOrigin(0).setInteractive()
+  let armed = false
+  rect.on('pointerdown', () => { armed = true })
+  rect.on('pointerup', () => { if (armed) { armed = false; onClose() } })
+  return rect
+}
+
 // Кнопка-плашка с закруглением. onClick вызывается только если enabled.
 // `chip` — вложенный ценник справа, как в оригинале: `[ Upgrade    $25 ]`.
 export class Button extends Phaser.GameObjects.Container {

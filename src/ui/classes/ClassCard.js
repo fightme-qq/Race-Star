@@ -100,15 +100,19 @@ export class ClassCard extends Phaser.GameObjects.Container {
     }
 
     const dist = s.winChanceOf(this.def.id)
-    // RANK — ожидаемое место в заезде. Настоящая таблица лиги приходит на шаге 3.
-    const expected = dist.reduce((acc, p, i) => acc + p * (i + 1), 0)
     this.fans.setText('👥 ' + formatNum(cs.fans)).setColor(CSS.accent)
     this.luck.setText('🍀 ' + Math.round(dist[0] * 100) + '%')
     this.teamText.setText(cs.teamName)
     this.leagueText.setText(s.leagueOf(this.def.id).name.toUpperCase())
     this.cols[0].val.setText(String(cs.season).padStart(3, '0'))
     this.cols[1].val.setText(String(cs.seasonScore))
-    this.cols[2].val.setText(String(Math.round(expected)))
+    // RANK — место в таблице сезона (шаг 3). До неё здесь стояло ожидаемое
+    // место в заезде из placeDist: заглушка, которая не сходилась со SCORE.
+    this.cols[2].val.setText(String(s.rankOf(this.def.id)))
+
+    // `Advance` активен ровно тогда, когда повышение уже заслужено, — иначе
+    // кнопка выглядит как «нажми и поднимись», чем она не является.
+    this.advance.setEnabled(s.canAdvance(this.def.id))
 
     this.mainBtn.setText(active ? 'Active' : 'Watch')
       .setFill(active ? PAL.panelAlt : PAL.green).setEnabled(!active)
