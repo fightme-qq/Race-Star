@@ -13,7 +13,9 @@
     "sim:tune": "node tools/sim/tune.js",
     "sim:race": "node tools/sim/fastrace.js",
     "smoke": "node tools/smoke.mjs",
-    "shot": "node tools/shot.mjs"
+    "shot": "node tools/shot.mjs",
+    "diff": "node tools/refdiff.mjs",
+    "ref:pull": "node tools/refpull.mjs"
   },
   "dependencies": {
     "phaser": "^3.87.0"

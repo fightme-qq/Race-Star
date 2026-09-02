@@ -3,3 +3,6 @@ raw/
 work/Data/
 .venv/
 work/il2cpp_strings.txt
+
+# Полноразмерные кадры витрины — восстанавливаются `node tools/refpull.mjs`
+ref/store/

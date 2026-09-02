@@ -1,0 +1,76 @@
+{
+  "_": "Референс-кадры оригинала. Два источника: витрина App Store и официальный канал.",
+  "_store": "itunes.apple.com/lookup?id=6782871814 (Race Star 1.4.1) и id=6793136442 (Track Star — тот же движок, другой рескин)",
+  "_video": "youtube.com/@racestargame — 14 роликов. Игра идёт в макете телефона по центру кадра 1920x1080; крой (655,0,1265,1080). Кадры вынуты на 2 fps, номер = секунда*2+1.",
+  "_pull": "node tools/refpull.mjs — качает оригиналы витрины в ref/store/ (в git не хранятся) и пересобирает 780px копии. Видеокадры в video/ вынимались вручную, их происхождение записано в поле from.",
+  "_aspect": "phone = 1284x2778, те же пропорции, что у нашего 390x844. tablet = 2048x2732. video = 603x1080, шире телефонного, сверять композицию, а не пропорции.",
+
+  "screens": {
+    "main": {
+      "ref": "main-early.png",
+      "aspect": "phone",
+      "shows": "старт: апгрейды Lv.0 с ценами $25/$50/$35/$70, лента кругов, извилистая трасса"
+    },
+    "drivers": {
+      "ref": "drivers.png",
+      "aspect": "phone",
+      "shows": "STARTERS (5), поверх — попап результата заезда и ряд из 5 круглых кнопок"
+    },
+    "career": {
+      "ref": "career.png",
+      "aspect": "phone",
+      "shows": "CAREER MODE, вкладки Overview/Skills/Outfits, дерево-граф, панель узла снизу"
+    },
+    "classes": {
+      "ref": "video/classes.png",
+      "aspect": "video",
+      "from": "kJ09ks1Oc4c кадр 049",
+      "shows": "карточка класса целиком: иконка, имя, фанаты, 🍀%, Watch, Team Name с карандашом, лига + Advance, SEASON/SCORE/RANK, Details"
+    }
+  },
+
+  "extra": {
+    "main-late.png": "phone: апгрейды Lv.8/Lv.5/Lv.3 с ценами $856/$1.29K/$169 + всплывашка прироста фанатов",
+    "main-oval.png": "phone: овальная трасса, другой класс, названия апгрейдов другие",
+    "main-figure8.png": "phone: трасса восьмёркой",
+    "main-dirt.png": "phone: грунтовая трасса",
+    "pad-main-economy.png": "tablet: экономические карточки Lv.0 — Ticket Marketing / Victory Celebrations / Parking / Grandstands",
+    "pad-main-economy2.png": "tablet: то же + всплывашка фанатов",
+    "pad-main-late.png": "tablet: Overtaking Technique Lv.9 $1.21K, Attacking Moves Lv.9 $6.25K",
+    "pad-drivers9.png": "tablet: STARTERS (9) — состав РАСШИРЯЕТСЯ, не всегда 5",
+    "pad-main-oval.png": "tablet: овальная трасса",
+    "pad-career.png": "tablet: всё дерево карьеры целиком — 6 кластеров по числу классов",
+    "trackstar/economy-lv5.png": "Track Star: экономика на Lv.4/5/8 — точки для подгонки кривой цены",
+    "trackstar/career-node.png": "Track Star: карточка узла дерева с формулировкой эффекта",
+    "trackstar/pad-career.png": "Track Star: дерево целиком",
+    "trackstar/main-sprint.png": "Track Star: главный экран, шапка с двумя кнопками (аватар + кубок) и EVENTS",
+    "trackstar/main-swim.png": "Track Star: главный экран, апгрейды Lv.3/4/12",
+    "trackstar/pad-main-sprint.png": "Track Star tablet",
+    "trackstar/pad-main-swim.png": "Track Star tablet",
+
+    "video/main-victory.png": "eRjggHbFFJY 082 — попап VICTORY - PODIUM FINISH (Cash +$100, Gems 47/150 per day +1) и апгрейды Overtaking Technique Lv.8 $856 / Attacking Moves Lv.9 $6.25K",
+    "video/main-fans-toast.png": "eRjggHbFFJY 093 — всплывашка 👥443 ⌃+205 и тост «Prime Chargers takes the lead!»",
+    "video/packs-open.png": "kJ09ks1Oc4c 026 — вскрытие пака: 13 карт (3 в ряд), рамка и круг рейтинга по редкости",
+    "video/swap-driver.png": "kJ09ks1Oc4c 030 — модалка Swap Driver: CURRENT / RESERVES, у Unique кнопка Get",
+    "video/train-driver.png": "kJ09ks1Oc4c 035 — модалка Train Driver: 50/75 XP, «2 driver(s) selected», сетка корма, сноска про перенос опыта",
+    "video/career-tree.png": "kJ09ks1Oc4c 038 — дерево карьеры на телефоне, 495 звёзд",
+    "video/classes-scrolled.png": "kJ09ks1Oc4c 051 — активный класс подсвечен зелёным и вместо Watch подпись Active"
+  },
+
+  "missing": {
+    "_": "Экраны, которых нет НИ НА ОДНОМ публичном кадре — проверено по 14 роликам канала и 28 кадрам витрины. Для них «1 в 1» недостижимо: логика восстанавливается из локализации билда (teardown/work/loc/en.json), композиция — наша, всё помечается [X].",
+    "list": [
+      "вкладка 2 — гир драйверов",
+      "вкладка 4 — лиги/турниры/кубок",
+      "вкладка 5 — награды, Season Pass",
+      "вкладка 6 — магазин",
+      "гараж и машины",
+      "Champions Arena",
+      "клубы",
+      "Overview и Outfits внутри Career Mode",
+      "попап офлайн-дохода",
+      "экран Details внутри карточки класса (кнопка видна, содержимое — нет)",
+      "5 круглых кнопок под трассой — видны, но назначение не показано"
+    ]
+  }
+}
