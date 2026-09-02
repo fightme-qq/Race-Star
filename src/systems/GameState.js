@@ -1,9 +1,14 @@
 import { RACE_CLASSES, CLASS_BY_ID, getUpgrade } from '../config/classes.js'
 import { ECONOMY, LEAGUES, GEMS, CLASS_UNLOCK_PRICES, AD_BOOST } from '../config/balance.js'
 import { PACK_BY_ID, RARITY_BY_ID } from '../config/drivers.js'
+import { CAREER } from '../config/career.js'
 import { aggregateClass, upgradePrice, isUpgradeLocked } from './UpgradeSystem.js'
 import { Roster } from './Roster.js'
 import { SaveSystem } from './SaveSystem.js'
+import {
+  freshCareer, careerEffects, careerStats, addCareerXp,
+  spendPoint, resetSkills, pointsFree, pointsSpent,
+} from './CareerSystem.js'
 
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
@@ -16,6 +21,7 @@ const freshClass = (index) => ({
   seasonScore: 0,
   seasonRaces: 0,
   adBoostsUsed: 0,
+  career: freshCareer(),   // карьерный драйвер у каждого класса свой [F]
 })
 
 export class GameState {
@@ -43,17 +49,49 @@ export class GameState {
   }
 
   // --- Ссылки ------------------------------------------------------------
+  // activeClass — свойство с сеттером: смена класса обязана сбросить кэш
+  // свода скиллов, дерево у каждого класса своё.
+  get activeClass() { return this._activeClass }
+  set activeClass(id) { this._activeClass = id; this._fx = null }
+
   get cls() { return this.classes[this.activeClass] }
   get clsDef() { return CLASS_BY_ID[this.activeClass] }
   get league() { return LEAGUES[Math.min(this.cls.league, LEAGUES.length - 1)] }
   get agg() { return aggregateClass(this.activeClass, this.cls.levels) }
 
+  // --- Карьерный драйвер -------------------------------------------------
+  get career() { return this.cls.career }
+  get careerFx() {
+    if (!this._fx) this._fx = careerEffects(this.cls.career)
+    return this._fx
+  }
+  get careerDriver() { return careerStats(this.cls.career, this.careerFx) }
+  get careerPoints() { return pointsFree(this.cls.career) }
+  invalidateCareer() { this._fx = null }
+
   // --- Производные статы -------------------------------------------------
-  // База — сумма статов пятёрки состава, проценты апгрейдов идут поверх.
+  // База — сумма статов пятёрки состава ПЛЮС карьерный драйвер (он выходит на
+  // трассу шестым). Проценты апгрейдов и скиллов идут поверх.
   get squadStats() { return this.roster.teamStats(this.activeClass) }
-  get offense() { return this.squadStats.off * (1 + this.agg.offensePct / 100) }
-  get defense() { return this.squadStats.def * (1 + this.agg.defensePct / 100) }
-  get teamPower() { return this.offense + this.defense }
+
+  get power() {
+    const fx = this.careerFx
+    const sq = this.squadStats
+    const cd = this.careerDriver
+    // Скиллы уводят проценты в минус (Glass Cannon: −7% защиты за ранг).
+    // Нижний зажим 0.05, иначе связка трейд-оффов обнуляет сторону в ноль и
+    // симуляция делит на ноль в beatProb.
+    const offMult = Math.max(0.05, 1 + (this.agg.offensePct + fx.teamOffPct) / 100)
+    const defMult = Math.max(0.05, 1 + (this.agg.defensePct + fx.teamDefPct) / 100)
+    return {
+      off: (sq.off + cd.off) * offMult,
+      def: (sq.def + cd.def) * defMult,
+    }
+  }
+
+  get offense() { return this.power.off }
+  get defense() { return this.power.def }
+  get teamPower() { const p = this.power; return p.off + p.def }
 
   // Три множителя дохода, каждый со своей формой роста — см. ECONOMY.
   get fanMultiplier() { return 1 + this.cls.fans / ECONOMY.fansPerFanBonus }
@@ -63,7 +101,10 @@ export class GameState {
   get incomePerSec() {
     const base = ECONOMY.baseIncomePerSec + this.agg.incomePerSec
     const boost = this.adBoostActive ? AD_BOOST.multiplier : 1
-    return base * this.fanMultiplier * this.leagueMultiplier * this.classMultiplier * boost
+    // Скиллы дохода (Sponsorships, Merchandising, Team Principal) — ещё один
+    // множитель, а не слагаемое: иначе к середине игры они не видны.
+    const career = Math.max(0.05, 1 + this.careerFx.incomePct / 100)
+    return base * this.fanMultiplier * this.leagueMultiplier * this.classMultiplier * boost * career
   }
 
   get adBoostActive() { return this.adBoostUntil > Date.now() }
@@ -138,6 +179,28 @@ export class GameState {
     this.roster.remove(uid)
     this.addCash(amount)
     return amount
+  }
+
+  // --- Карьера -----------------------------------------------------------
+  gainCareerXp(amount) { return addCareerXp(this.cls.career, amount) }
+
+  spendSkill(skillId) {
+    if (!spendPoint(this.cls.career, skillId)) return false
+    this.invalidateCareer()
+    return true
+  }
+
+  // «You can reset your Skills at any time for Gems» [F], цена наша.
+  canResetSkills() {
+    return pointsSpent(this.cls.career) > 0 && this.gems >= CAREER.resetGems
+  }
+
+  resetCareerSkills() {
+    if (!this.canResetSkills()) return 0
+    this.gems -= CAREER.resetGems
+    const back = resetSkills(this.cls.career)
+    this.invalidateCareer()
+    return back
   }
 
   activateAdBoost() {

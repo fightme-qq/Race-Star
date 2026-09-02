@@ -7,7 +7,7 @@ import { AD_BOOST } from '../config/balance.js'
 // Верхняя панель: деньги слева, гемы справа, "Income /s" по центру,
 // под ним кнопка Activate 2x и вход в модалку классов — как на кадрах.
 export class TopBar extends Phaser.GameObjects.Container {
-  constructor(scene, state, { onBoost, onClasses }) {
+  constructor(scene, state, { onBoost, onClasses, onCareer }) {
     super(scene, 0, 0)
     this.state = state
 
@@ -17,16 +17,26 @@ export class TopBar extends Phaser.GameObjects.Container {
     this.cashText = label(scene, 22, 15, '', { size: 14, bold: true, color: CSS.green })
     this.gemsText = label(scene, 370, 15, '', { size: 14, bold: true, color: CSS.cyan, align: 'right' })
 
-    label(scene, 195, 44, 'Income /s', { size: 11, color: CSS.muted, align: 'center' })
-    this.incomeText = label(scene, 195, 57, '', { size: 20, bold: true, align: 'center' })
+    // Порядок нижнего ряда — как на кадрах: [аватар] $1 [Activate 2x] [CLASSES].
+    // Раньше доход стоял по центру экрана, но с появлением аватара четыре
+    // элемента в ряд туда не влезли: кнопка классов накрыла собой значение
+    // дохода. Значение сдвинуто влево, к аватару, а не ужато.
+    label(scene, 110, 44, 'Income /s', { size: 11, color: CSS.muted, align: 'center' })
+    this.incomeText = label(scene, 110, 55, '', { size: 18, bold: true, align: 'center' })
 
-    this.boostBtn = new Button(scene, 300, 66, 148, 30, 'Activate 2x', { fill: PAL.accent, size: 12 })
+    this.boostBtn = new Button(scene, 205, 66, 108, 30, 'Activate 2x', { fill: PAL.accent, size: 11 })
     this.boostBtn.on('press', onBoost)
 
-    this.classBtn = new Button(scene, 90, 66, 148, 30, '🏎 CLASSES', { fill: PAL.panelAlt, size: 12 })
+    // [F] на кадрах слева от строки Income стоит аватар — это вход в карьеру
+    // (`CareerPlayers`), отдельную от состава систему.
+    this.careerBtn = new Button(scene, 40, 66, 60, 30, '', { fill: PAL.panelAlt, size: 12 })
+    this.careerBtn.on('press', onCareer)
+
+    this.classBtn = new Button(scene, 322, 66, 116, 30, '🏎 CLASSES', { fill: PAL.panelAlt, size: 11 })
     this.classBtn.on('press', onClasses)
 
-    this.add([this.cashText, this.gemsText, this.incomeText, this.boostBtn, this.classBtn])
+    this.add([this.cashText, this.gemsText, this.incomeText,
+      this.boostBtn, this.classBtn, this.careerBtn])
     scene.add.existing(this)
   }
 
@@ -46,5 +56,10 @@ export class TopBar extends Phaser.GameObjects.Container {
       this.boostBtn.setText(`Activate 2x (${AD_BOOST.maxPerClass - used})`)
     }
     this.classBtn.setText(s.clsDef.icon + '  ' + s.clsDef.name.toUpperCase())
+
+    // Точка у аватара — есть нераспределённые очки навыка.
+    const free = s.careerPoints
+    this.careerBtn.setText(`👤 ${s.career.level}` + (free > 0 ? ' •' : ''))
+    this.careerBtn.setFill(free > 0 ? PAL.accentDim : PAL.panelAlt)
   }
 }

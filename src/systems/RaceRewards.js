@@ -1,20 +1,28 @@
 import { ECONOMY, SEASON, GEMS, LEAGUES } from '../config/balance.js'
+import { CAREER } from '../config/career.js'
 
 // Начисление за финиш — чистая функция от состояния и места.
 // Вынесено из RaceController, чтобы балансный прогон (tools/sim) считал
 // награды ТЕМ ЖЕ кодом, что и живая игра, а не своей копией формул.
 export function applyRaceResult(state, position) {
   const idx = position - 1
+  const fx = state.careerFx
 
   // Приз и бонус за победу — в СЕКУНДАХ дохода: так они не отстают от
   // экономики на порядки к середине игры.
   const seconds = ECONOMY.prizeSeconds * ECONOMY.placePrize[idx]
     + (position === 1 ? state.agg.winBonusSec : 0)
-  const prize = state.incomePerSec * seconds
+  const prize = state.incomePerSec * seconds * Math.max(0, 1 + fx.prizePct / 100)
   state.addCash(prize)
 
-  const fans = Math.round((ECONOMY.fansPerRace + state.agg.fansPerRace) * ECONOMY.placeFans[idx])
+  const fans = Math.round((ECONOMY.fansPerRace + state.agg.fansPerRace)
+    * ECONOMY.placeFans[idx] * Math.max(0, 1 + fx.fansPct / 100))
   state.cls.fans += fans
+
+  // «Each race gives Career XP for that class» [F] — XP идёт активному классу
+  // и зависит от места, чтобы карьера росла не просто по часам на стене.
+  const careerXp = CAREER.xpPerRace * CAREER.xpPlace[idx]
+  const careerLevels = state.gainCareerXp(careerXp)
 
   let gems = 0
   if (position === 1) {
@@ -41,5 +49,5 @@ export function applyRaceResult(state, position) {
     state.cls.seasonScore = 0
   }
 
-  return { position, prize, fans, gems, seasonEnded, promoted }
+  return { position, prize, fans, gems, seasonEnded, promoted, careerXp, careerLevels }
 }

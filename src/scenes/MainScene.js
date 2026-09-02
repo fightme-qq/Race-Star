@@ -9,6 +9,7 @@ import { BottomNav } from '../ui/BottomNav.js'
 import { Toasts } from '../ui/Toasts.js'
 import { ClassesModal } from '../ui/ClassesModal.js'
 import { DriversModal } from '../ui/drivers/DriversModal.js'
+import { CareerModal } from '../ui/career/CareerModal.js'
 import { formatMoney, formatNum } from '../utils/format.js'
 
 // Главный экран: гонка идёт непрерывно, апгрейды покупаются прямо во время неё.
@@ -23,6 +24,7 @@ export class MainScene extends Phaser.Scene {
     this.topBar = new TopBar(this, this.state, {
       onBoost: () => this.activateBoost(),
       onClasses: () => this.openClasses(),
+      onCareer: () => this.openCareer(),
     })
 
     this.racePanel = new RacePanel(this, this.state, 10, 90, width - 20, 310)
@@ -101,6 +103,16 @@ export class MainScene extends Phaser.Scene {
     })
   }
 
+  openCareer() {
+    if (this.modal?.active) return
+    this.grid.locked = true
+    this.modal = new CareerModal(this, this.state, {
+      toast: (text, color) => this.toasts.show(text, color),
+      onChange: () => { this.state.save(); this.refreshUI() },
+      onClose: () => { this.grid.locked = false; this.modal = null },
+    })
+  }
+
   onRaceEvent(ev) {
     const color = ev.type === 'lead' ? PAL.accent : ev.type === 'lastlap' ? PAL.gold : PAL.panelAlt
     this.toasts.show(ev.text, color)
@@ -110,6 +122,9 @@ export class MainScene extends Phaser.Scene {
     const parts = [`P${res.position}`, formatMoney(res.prize), `👥 +${formatNum(res.fans)}`]
     if (res.gems > 0) parts.push(`💎 +${res.gems}`)
     this.toasts.show(parts.join('  ·  '), res.position === 1 ? PAL.green : PAL.panelAlt)
+    if (res.careerLevels > 0) {
+      this.toasts.show(`Карьера Lv. ${this.state.career.level} · +${res.careerLevels} очк.`, PAL.cyan)
+    }
     if (res.seasonEnded) {
       this.toasts.show(
         res.promoted ? `Повышение! ${this.state.league.name}` : `Сезон завершён · ${this.state.league.name}`,

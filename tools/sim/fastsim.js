@@ -4,7 +4,7 @@ import { GameState } from '../../src/systems/GameState.js'
 import { applyRaceResult } from '../../src/systems/RaceRewards.js'
 import { RACE, CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 import { fastRace } from './fastrace.js'
-import { driverBot } from './policies.js'
+import { driverBot, careerBot } from './policies.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
 const BUYS_PER_RACE = 6   // игрок докупает по ходу заезда, а не только на финише
@@ -15,7 +15,7 @@ const DRIVER_EVERY = 10
 
 // Прогон на сотни игровых часов: заезд считается ранжированием формы
 // (см. fastrace.js), награды — общим с игрой RaceRewards.
-export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600 }) {
+export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600, career = careerBot }) {
   clock.reset()
   localStorage.clear()
   const rng = new SeededRandom(seed)
@@ -33,6 +33,7 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600 }) 
   let earned = 0
   let purchases = 0
   let draws = 0
+  let skills = 0
   let nextSample = 0
 
   for (let race = 0; race < totalRaces; race++) {
@@ -52,7 +53,7 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600 }) 
     earned += state.cash - cashBefore
     places[position]++
     purchases += policy(state)
-    if (race % DRIVER_EVERY === 0) draws += driverBot(state)
+    if (race % DRIVER_EVERY === 0) { draws += driverBot(state); skills += career(state) }
 
     for (const price of CLASS_UNLOCK_PRICES) {
       if (price && !milestones[price] && earned >= price) milestones[price] = sec
@@ -63,11 +64,11 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600 }) 
       samples.push({
         sec, earned, incomePerSec: state.incomePerSec, fans: state.cls.fans,
         power: state.teamPower, league: state.cls.league,
-        squad: sq.off + sq.def, draws,
+        squad: sq.off + sq.def, draws, skills, career: state.career.level,
         levels: Object.values(state.cls.levels).reduce((a, b) => a + b, 0),
       })
     }
   }
 
-  return { hours, races: totalRaces, purchases, draws, earned, places, samples, milestones, state }
+  return { hours, races: totalRaces, purchases, draws, skills, earned, places, samples, milestones, state }
 }

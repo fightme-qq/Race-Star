@@ -12,7 +12,8 @@
     "sim": "node tools/sim/report.js",
     "sim:tune": "node tools/sim/tune.js",
     "sim:race": "node tools/sim/fastrace.js",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "shot": "node tools/shot.mjs"
   },
   "dependencies": {
     "phaser": "^3.87.0"

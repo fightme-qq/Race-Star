@@ -1,5 +1,5 @@
 const KEY = 'race-star-save'
-const VERSION = 2   // 2: добавлен roster — драйверы, состав, счётчики pity
+const VERSION = 3   // 2: roster (драйверы, состав, pity); 3: cls.career (карьерный драйвер)
 
 export const SaveSystem = {
   load() {

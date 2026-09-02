@@ -1,6 +1,6 @@
 // Прогон живой страницы в headless Chrome: Phaser-ошибки видны только в
 // рантайме, сборка их не ловит. Проверяем, что сцена поднялась, гонка идёт,
-// апгрейд покупается, экран драйверов открывается и в нём работают тапы.
+// апгрейд покупается, карьера и экран драйверов открываются и в них работают тапы.
 //
 // Тыкаем НАСТОЯЩИМИ событиями мыши, а не вызовами методов: все найденные до
 // сих пор баги UI были именно во входном слое (Zone с topOnly ела клики,
@@ -76,7 +76,30 @@ await step('главный экран', async () => page.evaluate(() => {
   }
 }))
 
-// 2. Открываем драйверов тапом по нижней панели (третья вкладка).
+// 2. Карьера: аватар в шапке -> дерево скиллов -> вложение очка меняет силу.
+await step('карьера тапами', async () => {
+  await page.evaluate(() => {
+    // Очки навыка капают за гонки; ждать 12 заездов в тесте незачем.
+    window.__game.scene.getScene('Main').state.gainCareerXp(2000)
+  })
+  await tapObj('topBar.careerBtn')
+  const before = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { power: Math.round(s.teamPower), free: s.careerPoints }
+  })
+  await tapObj('modal.nodes.0.btn')               // Racecraft +1
+  return page.evaluate((b) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const ok = s.career.spent.racecraft === 1
+      && s.careerPoints === b.free - 1
+      && Math.round(s.teamPower) !== b.power
+    main.modal.close()
+    return { ok, level: s.career.level, free: s.careerPoints, power: Math.round(s.teamPower), was: b }
+  }, before)
+})
+
+// 3. Открываем драйверов тапом по нижней панели (третья вкладка).
 await step('вкладка драйверов', async () => {
   await tapObj('nav.items.2.zone')
   return page.evaluate(() => {
@@ -85,7 +108,7 @@ await step('вкладка драйверов', async () => {
   })
 })
 
-// 3. Паки: даём гемов и тянем x10 — проверяем pity и пополнение резерва.
+// 4. Паки: даём гемов и тянем x10 — проверяем pity и пополнение резерва.
 await step('гача x10', async () => {
   await page.evaluate(() => { window.__game.scene.getScene('Main').state.gems = 400 })
   await tapObj('modal.tabs.1')
@@ -96,7 +119,7 @@ await step('гача x10', async () => {
   })
 })
 
-// 4. Состав: выбрать резервного и скормить его цели (тренировка).
+// 5. Состав: выбрать резервного и скормить его цели (тренировка).
 await step('тренировка тапами', async () => {
   await tapObj('modal.tabs.0')
   const before = await page.evaluate(() => {
@@ -117,7 +140,7 @@ await step('тренировка тапами', async () => {
   }, before)
 })
 
-// 5. Резервный встаёт в состав — сила команды обязана измениться.
+// 6. Резервный встаёт в состав — сила команды обязана измениться.
 await step('замена в составе', async () => {
   const before = await page.evaluate(() => Math.round(window.__game.scene.getScene('Main').state.teamPower))
   await tapObj('modal.squad.cards.5.card')
@@ -128,7 +151,7 @@ await step('замена в составе', async () => {
   }, before)
 })
 
-// 6. «АВТО» — merge дубликатов, топ-5 в состав, остальных в корм. Этой же
+// 7. «АВТО» — merge дубликатов, топ-5 в состав, остальных в корм. Этой же
 // функцией ходит бот в балансном стенде, поэтому падение здесь = сломанный sim.
 await step('автосостав', async () => {
   await tapObj('modal.autoBtn')
@@ -138,7 +161,7 @@ await step('автосостав', async () => {
   })
 })
 
-// 7. Закрытие: сейв переживает перезагрузку страницы.
+// 8. Закрытие: сейв переживает перезагрузку страницы.
 await step('сейв и закрытие', async () => {
   await page.evaluate(() => {
     const main = window.__game.scene.getScene('Main')
@@ -147,7 +170,7 @@ await step('сейв и закрытие', async () => {
   })
   const before = await page.evaluate(() => {
     const s = window.__game.scene.getScene('Main').state
-    return { drivers: s.roster.drivers.length, power: Math.round(s.teamPower) }
+    return { drivers: s.roster.drivers.length, power: Math.round(s.teamPower), skills: s.career.spent.racecraft }
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => window.__game?.scene?.getScene('Main')?.state, { timeout: 30000 })
@@ -155,8 +178,10 @@ await step('сейв и закрытие', async () => {
   return page.evaluate((b) => {
     const s = window.__game.scene.getScene('Main').state
     return {
-      ok: s.roster.drivers.length === b.drivers && Math.round(s.teamPower) === b.power,
-      drivers: s.roster.drivers.length, power: Math.round(s.teamPower), was: b,
+      ok: s.roster.drivers.length === b.drivers && Math.round(s.teamPower) === b.power
+        && s.career.spent.racecraft === b.skills,
+      drivers: s.roster.drivers.length, power: Math.round(s.teamPower),
+      skills: s.career.spent.racecraft, was: b,
     }
   }, before)
 })

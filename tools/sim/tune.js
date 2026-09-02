@@ -37,7 +37,10 @@ export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
 
 const SPACE = {
   ecoGain:    [0.02, 1.5],
-  ecoPg:      [1.20, 1.90],
+  // Верхняя граница поднята на Этапе 3: карьерный драйвер добавил третий
+  // множитель дохода, и подбор упирался в прежний потолок 1.90 — то есть
+  // хотел уйти дальше, а граница молча держала.
+  ecoPg:      [1.20, 2.60],
   fanGain:    [0.05, 3.0],
   fanPg:      [1.14, 1.32],   // выше — ветка фанатов вырождается в ловушку
   fansK:      [200, 200000],
@@ -61,6 +64,9 @@ const SEED_POINTS = [
   // точка перебора Этапа 2.
   { ecoGain: 0.5523, ecoPg: 1.6664, fanGain: 0.7726, fanPg: 1.2975,
     fansK: 112991, leagueMult: 1.5848, leagueStep: 1.4183, promoteRatio: 1.7221 },
+  // Точка Этапа 2 как она легла в конфиг — стартовая для перебора Этапа 3.
+  { ecoGain: 0.4121, ecoPg: 1.9000, fanGain: 0.6410, fanPg: 1.3200,
+    fansK: 143640, leagueMult: 1.4630, leagueStep: 1.4183, promoteRatio: 1.7200 },
 ]
 
 const sampleLog = (rng, [lo, hi]) => Math.exp(rng.float(Math.log(lo), Math.log(hi)))

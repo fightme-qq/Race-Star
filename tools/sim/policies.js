@@ -2,6 +2,8 @@
 // отличить «экономика не растёт» от «бот покупает не то».
 
 import { ECONOMY, RACE, LEAGUES, SEASON } from '../../src/config/balance.js'
+import { SKILLS } from '../../src/config/career.js'
+import { canSpend, pointsFree, rankOf } from '../../src/systems/CareerSystem.js'
 
 const buyableKeys = (state) =>
   state.clsDef.upgrades.filter((u) => u.currency === 'cash').map((u) => u.key)
@@ -79,18 +81,30 @@ function reachableLeague(power) {
 // что была с лигами). Берём средний множитель за горизонт — отсюда H/2.
 const HORIZON_RACES = 850
 
-export function ratePerSec(state) {
+// Горизонт карьерных решений на порядок длиннее. Очко навыка не покупается за
+// деньги и не обесценивается — оно вкладывается НАВСЕГДА, поэтому меряется
+// остатком игры, а не ближайшими четырнадцатью часами, как апгрейд за $25.
+// Проверено прогоном: с горизонтом 850 бот не брал Crowd Work вовсе, а ручная
+// раскладка «фанаты вперёд» обыгрывала его на 63% ($135B против $83B).
+const CAREER_HORIZON_RACES = 25000
+
+export function ratePerSec(state, horizonRaces = HORIZON_RACES) {
   const dist = placeDist(state.teamPower, state.league.power)
+  const fx = state.careerFx
   let prizeShare = 0
   let fanPlace = 0
   for (let k = 0; k < 10; k++) {
     prizeShare += dist[k] * ECONOMY.placePrize[k]
     fanPlace += dist[k] * ECONOMY.placeFans[k]
   }
-  prizeShare *= ECONOMY.prizeSeconds / RACE.durationSec
+  // Проценты карьерных скиллов к призу и фанатам — здесь же. Оценщик, который
+  // их не видит, объявил бы Prize Hunter и Crowd Work бесполезными: ровно та
+  // слепота, из-за которой roiGreedy когда-то не покупал бой и лиги.
+  prizeShare *= (ECONOMY.prizeSeconds / RACE.durationSec) * (1 + fx.prizePct / 100)
 
   const fansPerRace = (ECONOMY.fansPerRace + state.agg.fansPerRace) * fanPlace
-  const projFans = state.cls.fans + fansPerRace * HORIZON_RACES / 2
+    * (1 + fx.fansPct / 100)
+  const projFans = state.cls.fans + fansPerRace * horizonRaces / 2
   const fanScale = (1 + projFans / ECONOMY.fansPerFanBonus) / state.fanMultiplier
 
   const atLeagueZero = state.incomePerSec / state.leagueMultiplier
@@ -164,6 +178,34 @@ export const POLICIES = { cheapestFirst, economyOnly, roiGreedy }
 // только пятёрка набрана All-Star'ами, его выпадения перестают попадать в
 // состав вовсе и остаются только кормом.
 const ALLSTAR_SWITCH_RATING = 66
+
+// --- Карьерный драйвер ---------------------------------------------------
+// Очки навыка не покупаются, они капают за гонки, поэтому карьера тоже вне
+// политик закупки. Раскладываем очки жадно по ratePerSec — тем же оценщиком,
+// что и апгрейды, иначе ветка с трейд-оффами оценивалась бы по другой шкале.
+// Половина узлов даёт минус (Glass Cannon: −7% защиты за ранг), и в ярусе
+// может не найтись ни одного плюсового хода — берём лучший из имеющихся, а не
+// «только положительный»: очки всё равно нужно вложить, чтобы открыть ярус.
+export function careerBot(state) {
+  const career = state.cls.career
+  let spent = 0
+  while (pointsFree(career) > 0 && spent < 200) {
+    const before = ratePerSec(state, CAREER_HORIZON_RACES)
+    let best = null
+    for (const skill of SKILLS) {
+      if (!canSpend(career, skill)) continue
+      career.spent[skill.id] = rankOf(career, skill.id) + 1
+      state.invalidateCareer()
+      const gain = ratePerSec(state, CAREER_HORIZON_RACES) - before
+      career.spent[skill.id] -= 1
+      state.invalidateCareer()
+      if (!best || gain > best.gain) best = { id: skill.id, gain }
+    }
+    if (!best || !state.spendSkill(best.id)) break
+    spent++
+  }
+  return spent
+}
 
 export function driverBot(state) {
   const squad = state.roster.squad(state.activeClass)
