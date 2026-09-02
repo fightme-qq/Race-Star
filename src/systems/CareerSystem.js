@@ -55,7 +55,7 @@ export function resetSkills(career) {
 }
 
 const ZERO_FX = {
-  careerOff: 0, careerDef: 0, teamOffPct: 0, teamDefPct: 0,
+  careerOff: 0, careerDef: 0, teamOffPct: 0, teamDefPct: 0, defToOff: 0,
   incomePct: 0, prizePct: 0, fansPct: 0,
 }
 

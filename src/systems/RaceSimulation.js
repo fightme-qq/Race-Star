@@ -1,13 +1,12 @@
 import { RACE } from '../config/balance.js'
+import { racerShape, opponentShape, OPPONENT_SPREAD } from './RaceModel.js'
 import { SeededRandom, randomSeed } from '../utils/rng.js'
 
 // Гонка — чистая симуляция чисел (в оригинале нет ни одного класса вождения).
-// Модель [X], форма подтверждена слоем D:
-//   Offense -> прибавка к базовой скорости (способность обгонять)
-//   Defense -> гасит отрицательный шум (удержание позиции)
-// Победитель НЕ предопределён: позиция считается из накопленного прогресса.
-
-const OPPONENT_SPREAD = [0.72, 0.80, 0.87, 0.93, 1.0, 1.06, 1.13, 1.21, 1.32]
+// Вся математика исхода живёт в RaceModel.js, здесь только её раскатка во
+// времени: точки должны ехать 60 секунд и приезжать ровно туда, куда велит
+// разыгранная форма. Победитель НЕ предопределён: позиция считается из
+// накопленного прогресса.
 
 export class RaceSimulation {
   constructor({ playerOffense, playerDefense, leaguePower, seed = randomSeed() }) {
@@ -18,37 +17,34 @@ export class RaceSimulation {
     this.finished = false
     this.events = []
 
-    const playerPower = playerOffense + playerDefense
-    this.racers = [{
-      id: 0, isPlayer: true, progress: 0, position: 1,
-      offense: playerOffense, defense: playerDefense, power: playerPower,
-      form: this.drawForm(), speed: 1, wobble: this.rng.float(0, Math.PI * 2),
-    }]
-
+    this.racers = [this.makeRacer(0, racerShape(playerOffense, playerDefense), true)]
     for (let i = 0; i < RACE.racers - 1; i++) {
       const power = leaguePower * OPPONENT_SPREAD[i] * this.rng.float(0.94, 1.06)
-      this.racers.push({
-        id: i + 1, isPlayer: false, progress: 0, position: i + 2,
-        offense: power * 0.5, defense: power * 0.5, power,
-        form: this.drawForm(), speed: 1, wobble: this.rng.float(0, Math.PI * 2),
-      })
+      this.racers.push(this.makeRacer(i + 1, opponentShape(power), false))
     }
 
-    this.meanPower = this.racers.reduce((s, r) => s + r.power, 0) / this.racers.length
+    this.meanStat = this.racers.reduce((s, r) => s + r.stat, 0) / this.racers.length
     this.lastPlayerPos = 1
   }
 
-  // Форма на заезд: разыгрывается ОДИН раз при создании гонки и держится все
-  // 60 секунд. Покадровый шум за 600 тиков усредняется почти в ноль и исход
-  // не меняет — вся вариативность результата живёт здесь.
-  drawForm() {
-    return Math.exp(this.rng.gauss(0, RACE.formSigma))
+  // Всё, что решает исход, разыгрывается ОДИН раз на старте и держится все 60
+  // секунд: покадровый шум за 600 тиков усредняется почти в ноль. Здесь два
+  // броска — какой стороной подготовки решится заезд (обгон или удержание) и
+  // форма на этот заезд.
+  makeRacer(id, shape, isPlayer) {
+    const attacking = this.rng.next() < RACE.attackWeight
+    return {
+      id, isPlayer, shape, attacking, progress: 0, position: id + 1,
+      stat: attacking ? shape.attack : shape.hold,
+      form: Math.exp(this.rng.gauss(0, shape.sigma)),
+      speed: 1, wobble: this.rng.float(0, Math.PI * 2),
+    }
   }
 
   // Базовая скорость от соотношения силы; сжата корнем, чтобы отставший
   // не терял круг за 10 секунд, а разрыв читался как борьба.
   baseSpeedOf(racer) {
-    return Math.pow(racer.power / this.meanPower, 0.45) * racer.form
+    return Math.pow(racer.stat / this.meanStat, 0.45) * racer.form
   }
 
   step(dt) {
@@ -58,9 +54,10 @@ export class RaceSimulation {
     this.elapsed += step
 
     for (const r of this.racers) {
-      const defShare = r.defense / Math.max(1, r.offense + r.defense)
-      const sigma = RACE.stepNoise * (1 - defShare * 0.45)
-      const noise = this.rng.gauss(0, sigma)
+      // Покадровая тряска — ТОЛЬКО картинка. За 600 тиков она усредняется в
+      // ноль и на финиш не влияет; именно попытка повесить на неё защиту и
+      // делала деление слотов косметическим. Защита теперь в r.shape.sigma.
+      const noise = this.rng.gauss(0, RACE.stepNoise)
       // Плавная составляющая — чтобы точки не дёргались покадрово.
       r.wobble += step * 1.7
       const drift = Math.sin(r.wobble) * 0.06

@@ -47,7 +47,8 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600, ca
       purchases += policy(state)
     }
 
-    const position = fastRace(state.teamPower, state.league.power, rng)
+    const pw = state.power
+    const position = fastRace(pw.off, pw.def, state.league.power, rng)
     const cashBefore = state.cash
     applyRaceResult(state, position)
     earned += state.cash - cashBefore

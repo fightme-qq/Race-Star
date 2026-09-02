@@ -79,13 +79,17 @@ export class GameState {
     const sq = this.squadStats
     const cd = this.careerDriver
     // Скиллы уводят проценты в минус (Glass Cannon: −7% защиты за ранг).
-    // Нижний зажим 0.05, иначе связка трейд-оффов обнуляет сторону в ноль и
-    // симуляция делит на ноль в beatProb.
+    // Нижний зажим 0.05, иначе связка трейд-оффов обнуляет сторону в ноль, а
+    // RaceModel берёт от статов логарифм.
     const offMult = Math.max(0.05, 1 + (this.agg.offensePct + fx.teamOffPct) / 100)
     const defMult = Math.max(0.05, 1 + (this.agg.defensePct + fx.teamDefPct) / 100)
+    const def = (sq.def + cd.def) * defMult
+    // Counter Force [F]: часть обороны засчитывается и в атакующем заезде, при
+    // этом из обороны НЕ вычитается — это контратака, а не размен.
+    const counter = Math.max(0, Math.min(100, fx.defToOff)) / 100
     return {
-      off: (sq.off + cd.off) * offMult,
-      def: (sq.def + cd.def) * defMult,
+      off: (sq.off + cd.off) * offMult + def * counter,
+      def,
     }
   }
 

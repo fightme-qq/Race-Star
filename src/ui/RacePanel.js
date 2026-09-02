@@ -15,10 +15,15 @@ export class RacePanel extends Phaser.GameObjects.Container {
 
     this.teamText = label(scene, x + 14, y + 12, state.teamName, { size: 17, bold: true, color: CSS.red })
     this.fansText = label(scene, x + 14, y + 34, '', { size: 13, color: CSS.text })
-    this.lapText = label(scene, x + 120, y + 35, '', { size: 11, color: CSS.muted })
     // Сила команды на главном экране — иначе прокачка драйверов не даёт
     // никакой обратной связи: состав меняется, а на экране ничего не движется.
-    this.powerText = label(scene, x + 196, y + 35, '', { size: 11, color: CSS.muted })
+    // Две стороны разнесены по отдельным меткам не ради красоты: заезд решает
+    // ОДНА из них, и подсветить надо ровно ту, что решает этот заезд. Без
+    // подсветки деление апгрейдов на атаку и защиту для игрока неотличимо от
+    // косметики — чем оно, собственно, и было до Этапа 4.
+    this.offText = label(scene, x + 92, y + 35, '', { size: 11, color: CSS.muted })
+    this.defText = label(scene, x + 148, y + 35, '', { size: 11, color: CSS.muted })
+    this.modeText = label(scene, x + 208, y + 35, '', { size: 10, bold: true, color: CSS.muted })
     this.leagueText = label(scene, x + 14, y + 52, '', { size: 10, color: CSS.muted })
 
     // Бейдж позиции и таймера — правый верхний угол, как на кадрах.
@@ -28,8 +33,8 @@ export class RacePanel extends Phaser.GameObjects.Container {
 
     this.track = new TrackView(scene, x + 10, y + 74, w - 20, h - 86)
 
-    this.add([this.teamText, this.fansText, this.lapText, this.leagueText,
-      this.powerText, this.posText, this.timeText, this.track])
+    this.add([this.teamText, this.fansText, this.leagueText, this.offText,
+      this.defText, this.modeText, this.posText, this.timeText, this.track])
     scene.add.existing(this)
   }
 
@@ -37,17 +42,26 @@ export class RacePanel extends Phaser.GameObjects.Container {
     const s = this.state
     this.teamText.setText(s.teamName)
     this.fansText.setText('👥 ' + formatNum(s.cls.fans))
-    this.powerText.setText(`⚔ ${formatNum(s.offense)}   🛡 ${formatNum(s.defense)}`)
+    this.offText.setText(`⚔ ${formatNum(s.offense)}`)
+    this.defText.setText(`🛡 ${formatNum(s.defense)}`)
+    const lap = sim ? Math.min(RACE.laps, sim.lapPositionOf(sim.player).lap) : 1
     this.leagueText.setText(
-      `${s.league.name}   SEASON ${String(s.cls.season).padStart(3, '0')}   SCORE ${s.cls.seasonScore}`
+      `${s.league.name}  S${String(s.cls.season).padStart(3, '0')}  ` +
+      `SCORE ${s.cls.seasonScore}  LAP ${lap}/${RACE.laps}`
     )
     if (!sim) return
+
+    // Какой стороной решается заезд — разыграно на старте, всю гонку не меняется.
+    const attacking = sim.player.attacking
+    this.modeText.setText(attacking ? 'ОБГОН' : 'ЗАЩИТА')
+    this.modeText.setColor(attacking ? CSS.red : CSS.cyan)
+    this.offText.setColor(attacking ? CSS.text : CSS.dim)
+    this.defText.setColor(attacking ? CSS.dim : CSS.text)
+
     const pos = sim.player.position
     this.posText.setText(`P${pos}/${RACE.racers}`)
     this.posText.setColor(pos === 1 ? CSS.accent : pos <= 3 ? CSS.gold : CSS.text)
     this.timeText.setText(formatClock(sim.timeLeft))
-    const lap = Math.min(RACE.laps, sim.lapPositionOf(sim.player).lap)
-    this.lapText.setText(`LAP ${lap}/${RACE.laps}`)
     this.track.update(sim)
   }
 }

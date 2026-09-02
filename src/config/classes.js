@@ -32,10 +32,10 @@ const COMBAT_SLOTS = [
 // Ticket Marketing: наблюдались цены $33 / $101 / $128 / $466 [F], но уровни
 // несмежные, так что pg по ним не восстанавливается — отсюда [X].
 const ECONOMY_SLOTS = [
-  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 2.290, gain: 0.479, unit: '$/с',   effect: 'incomePerSec' },
-  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 2.285, gain: 0.650, unit: '$/с',   effect: 'incomePerSec' },
-  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.251, gain: 0.532, unit: 'фан.',  effect: 'fansPerRace' },
-  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 2.305, gain: 0.308, unit: 'с',     effect: 'winBonusSec' },
+  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 2.290, gain: 0.492, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 2.285, gain: 0.667, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.320, gain: 0.576, unit: 'фан.',  effect: 'fansPerRace' },
+  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 2.305, gain: 0.316, unit: 'с',     effect: 'winBonusSec' },
 ]
 
 // Трофейная ветка [F]: цена 1 трофей, Lv.0 -> "0% -> 10%".

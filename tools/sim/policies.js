@@ -4,41 +4,14 @@
 import { ECONOMY, RACE, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { SKILLS } from '../../src/config/career.js'
 import { canSpend, pointsFree, rankOf } from '../../src/systems/CareerSystem.js'
+import { racerShape, placeDist } from '../../src/systems/RaceModel.js'
 
 const buyableKeys = (state) =>
   state.clsDef.upgrades.filter((u) => u.currency === 'cash').map((u) => u.key)
 
-// Соперники расставлены по leaguePower * spread — как в fastRace.
-const SPREAD = [0.72, 0.80, 0.87, 0.93, 1.0, 1.06, 1.13, 1.21, 1.32]
-
-// Вероятность обогнать соперника. В fastRace обе формы логнормальны с одной и
-// той же сигмой, значит разность логарифмов нормальна с sigma*sqrt(2), а шанс
-// = Ф(0.45 * ln(своя/чужая) / (sigma*sqrt(2))).
-const erf = (x) => {
-  const t = 1 / (1 + 0.3275911 * Math.abs(x))
-  const y = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t
-    - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)
-  return x >= 0 ? y : -y
-}
-// Ф(z) = 0.5*(1+erf(z/sqrt(2))), поэтому делители sqrt(2) сокращаются в 2*sigma.
-const beatProb = (mine, theirs) =>
-  0.5 * (1 + erf(0.45 * Math.log(mine / theirs) / (2 * RACE.formSigma)))
-
-// Точное распределение мест — свёртка девяти независимых исходов
-// (Пуассон-биномиальное). dist[k] = вероятность проиграть ровно k соперникам.
-function placeDist(power, leaguePower) {
-  let dist = [1]
-  for (const s of SPREAD) {
-    const w = beatProb(power, leaguePower * s)
-    const next = new Array(dist.length + 1).fill(0)
-    for (let k = 0; k < dist.length; k++) {
-      next[k] += dist[k] * w
-      next[k + 1] += dist[k] * (1 - w)
-    }
-    dist = next
-  }
-  return dist
-}
+// beatProb / placeDist переехали в src/systems/RaceModel.js: с Этапа 4 шанс
+// зависит не только от суммы статов, но и от расклада между ними, и держать
+// формулу отдельно от гонки значило бы подбирать баланс по чужой модели.
 
 const seasonPoints = (dist) =>
   SEASON.winPoints * dist[0] + SEASON.podiumPoints * (dist[1] + dist[2])
@@ -54,16 +27,19 @@ const seasonPoints = (dist) =>
 // Кэш по силе. Перебор в tune.js правит силу лиг на месте, поэтому между
 // прогонами его обязательно сбрасывать — иначе оценщик считает по прошлому
 // конфигу и подбор сходится не туда.
+// В ключ входит и ПЕРЕКОС: две команды одной суммарной силы, но с разным
+// раскладом, доезжают до разных лиг. Забыть tilt здесь — значит вернуть ровно
+// ту слепоту, из-за которой защита считалась пустышкой.
 const reachCache = new Map()
 export const resetPolicyCache = () => reachCache.clear()
 
-function reachableLeague(power) {
-  const key = Math.round(power * 4)
+function reachableLeague(shape) {
+  const key = Math.round(shape.power * 4) + ':' + Math.round(shape.tilt * 200)
   let hit = reachCache.get(key)
   if (hit === undefined) {
     hit = 0
     for (const l of LEAGUES) {
-      const pts = seasonPoints(placeDist(power, l.power))
+      const pts = seasonPoints(placeDist(shape, l.power))
       hit += 1 / (1 + Math.exp(-(pts - SEASON.promoteRatio) / 0.12))
     }
     reachCache.set(key, hit)
@@ -89,7 +65,9 @@ const HORIZON_RACES = 850
 const CAREER_HORIZON_RACES = 25000
 
 export function ratePerSec(state, horizonRaces = HORIZON_RACES) {
-  const dist = placeDist(state.teamPower, state.league.power)
+  const p = state.power
+  const shape = racerShape(p.off, p.def)
+  const dist = placeDist(shape, state.league.power)
   const fx = state.careerFx
   let prizeShare = 0
   let fanPlace = 0
@@ -108,13 +86,14 @@ export function ratePerSec(state, horizonRaces = HORIZON_RACES) {
   const fanScale = (1 + projFans / ECONOMY.fansPerFanBonus) / state.fanMultiplier
 
   const atLeagueZero = state.incomePerSec / state.leagueMultiplier
-  const reach = Math.max(state.cls.league, reachableLeague(state.teamPower))
+  const reach = Math.max(state.cls.league, reachableLeague(shape))
   return atLeagueZero * fanScale * Math.pow(ECONOMY.leagueIncomeMult, reach) * (1 + prizeShare)
 }
 
 export function expectedPlace(state) {
-  const dist = placeDist(state.teamPower, state.league.power)
-  return dist.reduce((acc, p, k) => acc + p * (k + 1), 0)
+  const p = state.power
+  const dist = placeDist(racerShape(p.off, p.def), state.league.power)
+  return dist.reduce((acc, prob, k) => acc + prob * (k + 1), 0)
 }
 
 // Предохранитель: при заведомо сломанном конфиге (доход обгоняет цену) бот
