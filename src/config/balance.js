@@ -49,14 +49,14 @@ export const STATS = {
 // между разблокировками классов (см. CLASS_UNLOCK_PRICES).
 export const ECONOMY = {
   baseIncomePerSec: 1,   // [F] стартовое "Income /s $1"
-  fansPerFanBonus: 260,  // [X] множитель дохода = 1 + fans / 260
+  fansPerFanBonus: 113000, // [X] множитель дохода = 1 + fans / 113000 (подбор)
   fansPerRace: 12,       // [X] базовый прирост фанатов за гонку
   prizeSeconds: 30,      // [X] приз за гонку = доход/сек * 30 * коэф. места
   // [X] коэффициент приза по месту P1..P10
   placePrize: [1.0, 0.72, 0.55, 0.42, 0.32, 0.25, 0.19, 0.14, 0.10, 0.07],
   // [X] бонус фанатов за место (умножает прирост от Grandstands)
   placeFans: [1.6, 1.35, 1.15, 1.0, 0.85, 0.72, 0.6, 0.5, 0.4, 0.3],
-  leagueIncomeMult: 1.55, // [X] доход x1.55 за ступень лиги — ради этого качают бой
+  leagueIncomeMult: 1.585, // [X] доход за ступень лиги — ради этого качают бой
   classIncomeMult: 3.2,   // [X] доход x3.2 за индекс класса
   offlineCapHours: 4,     // [X] попап офлайн-дохода в оригинале нигде не показан
 }
@@ -67,27 +67,28 @@ export const GEMS = {
 }
 
 // --- Сезоны и лиги -------------------------------------------------------
-// Названия [E] из локализации, сила [X]. Шаг ~x1.42: боевые слоты дают +2/+3%
-// от базы 100 при цене, растущей на ~22% за уровень, поэтому за всю
-// «доводочную» эру сила поднимается примерно 200 -> 1500. Когда появятся
-// драйверы (+10%/ур. от базы стата, merge, гача) — лестницу продлевать вверх,
-// а не пересчитывать: доход за ступень уже завязан на leagueIncomeMult.
+// Названия [E] из локализации, сила [X]. Шаг x1.2487 подобран перебором: при
+// более крутой лестнице игрок застревает в середине, при более пологой —
+// пролетает все восемь лиг за первые сутки и доля побед уходит далеко за 15%.
+// Когда появятся драйверы (+10%/ур. от базы стата, merge, гача) — лестницу
+// продлевать вверх, а не пересчитывать: доход за ступень завязан на
+// leagueIncomeMult, и смена нижних ступеней сдвинет все вехи разом.
 export const LEAGUES = [
   { id: 'rookie',   name: 'ROOKIE LEAGUE',   power: 190 },  // [F] стартовая — ROOKIE
-  { id: 'bronze',   name: 'BRONZE LEAGUE',   power: 270 },
-  { id: 'silver',   name: 'SILVER LEAGUE',   power: 385 },
-  { id: 'gold',     name: 'GOLD LEAGUE',     power: 545 },
-  { id: 'platinum', name: 'PLATINUM LEAGUE', power: 775 },
-  { id: 'diamond',  name: 'DIAMOND LEAGUE',  power: 1100 },
-  { id: 'elite',    name: 'ELITE LEAGUE',    power: 1560 },
-  { id: 'expert',   name: 'EXPERT LEAGUE',   power: 2200 },
+  { id: 'bronze',   name: 'BRONZE LEAGUE',   power: 237 },
+  { id: 'silver',   name: 'SILVER LEAGUE',   power: 296 },
+  { id: 'gold',     name: 'GOLD LEAGUE',     power: 370 },
+  { id: 'platinum', name: 'PLATINUM LEAGUE', power: 462 },
+  { id: 'diamond',  name: 'DIAMOND LEAGUE',  power: 577 },
+  { id: 'elite',    name: 'ELITE LEAGUE',    power: 720 },
+  { id: 'expert',   name: 'EXPERT LEAGUE',   power: 900 },
 ]
 
 export const SEASON = {
   races: 20,           // [X] "SEASON 028 | SCORE 56 | RANK 3" — длина не видна
   winPoints: 3,        // [X]
   podiumPoints: 1,     // [X]
-  promoteRatio: 1.4,   // [X] повышение в лигу при счёте >= races * 1.4
+  promoteRatio: 1.72,  // [X] повышение в лигу при счёте >= races * 1.72
 }
 
 // --- Разблокировка классов ----------------------------------------------

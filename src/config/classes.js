@@ -18,11 +18,17 @@ const COMBAT_SLOTS = [
 // уровень окупается всё дольше.
 // Victory Celebrations даёт не плоские деньги, а СЕКУНДЫ дохода к призу за
 // победу — иначе к середине игры бонус обесценивается на два порядка.
+// pg и gain подобраны перебором (tools/sim/tune.js). Ключевое: у денежных
+// слотов цена растёт круто (x1.67), у фанатов заметно медленнее (x1.30).
+// Наоборот не работает — при pg фанатов выше ~1.32 Grandstands становится
+// апгрейдом-ловушкой: цена x1.77 за уровень при +0.09 фаната.
+// Ticket Marketing: наблюдались цены $33 / $101 / $128 / $466 [F], но уровни
+// несмежные, так что pg по ним не восстанавливается — отсюда [X].
 const ECONOMY_SLOTS = [
-  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 1.155, gain: 1.4, unit: '$/с',   effect: 'incomePerSec' },
-  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 1.150, gain: 1.9, unit: '$/с',   effect: 'incomePerSec' },
-  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.190, gain: 2.0, unit: 'фан.',  effect: 'fansPerRace' },
-  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 1.170, gain: 0.9, unit: 'с',     effect: 'winBonusSec' },
+  { key: 'e0', name: 'Ticket Marketing',     tag: 'income', base: 33, pg: 1.666, gain: 0.773, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e1', name: 'Parking',              tag: 'income', base: 50, pg: 1.661, gain: 1.049, unit: '$/с',   effect: 'incomePerSec' },
+  { key: 'e2', name: 'Grandstands',          tag: 'fans',   base: 50, pg: 1.297, gain: 0.773, unit: 'фан.',  effect: 'fansPerRace' },
+  { key: 'e3', name: 'Victory Celebrations', tag: 'income', base: 50, pg: 1.681, gain: 0.497, unit: 'с',     effect: 'winBonusSec' },
 ]
 
 // Трофейная ветка [F]: цена 1 трофей, Lv.0 -> "0% -> 10%".

@@ -1,6 +1,6 @@
 import './headless.js'
 import { fastSim } from './fastsim.js'
-import { cheapestFirst } from './policies.js'
+import { cheapestFirst, resetPolicyCache } from './policies.js'
 import { MILESTONE_TARGETS, scoreRun } from './targets.js'
 import { ECONOMY, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { RACE_CLASSES } from '../../src/config/classes.js'
@@ -8,6 +8,7 @@ import { SeededRandom } from '../../src/utils/rng.js'
 
 // Конфиги — обычные объекты, правим на месте перед прогоном.
 export function applyTune(p) {
+  resetPolicyCache()
   ECONOMY.fansPerFanBonus = p.fansK
   ECONOMY.leagueIncomeMult = p.leagueMult
   SEASON.promoteRatio = p.promoteRatio
@@ -50,6 +51,10 @@ const SPACE = {
 const SEED_POINTS = [
   { ecoGain: 0.2177, ecoPg: 1.3555, fanGain: 0.30, fanPg: 1.26,
     fansK: 40000, leagueMult: 2.1825, leagueStep: 1.2602, promoteRatio: 1.7329 },
+  // Текущая точка конфига — счёт 0.214 на 700ч, все четыре условия качества
+  // выполнены. Именно она разложена по balance.js и classes.js.
+  { ecoGain: 0.5523, ecoPg: 1.6664, fanGain: 0.7726, fanPg: 1.2975,
+    fansK: 112991, leagueMult: 1.5848, leagueStep: 1.2487, promoteRatio: 1.7221 },
 ]
 
 const sampleLog = (rng, [lo, hi]) => Math.exp(rng.float(Math.log(lo), Math.log(hi)))

@@ -18,7 +18,12 @@ const errors = []
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
 
-await page.goto(URL, { waitUntil: 'networkidle2', timeout: 30000 })
+// domcontentloaded, а не networkidle2: под dev-сервером Vite держит открытым
+// websocket HMR, «тишины в сети» не наступает никогда, и goto падает по
+// таймауту, хотя страница давно загрузилась. Готовность проверяем ниже — по
+// появлению window.__game, а не по сетевой активности.
+await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
+await page.waitForFunction(() => window.__game, { timeout: 30000 })
 await page.evaluate(() => new Promise((r) => setTimeout(r, 4000)))
 
 const probe = await page.evaluate(() => {
