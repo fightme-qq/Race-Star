@@ -5,6 +5,7 @@ import { applyRaceResult } from '../../src/systems/RaceRewards.js'
 import { RACE, CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 import { fastRace } from './fastrace.js'
 import { driverBot, careerBot } from './policies.js'
+import { stayFirst } from './classplan.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
 const BUYS_PER_RACE = 6   // игрок докупает по ходу заезда, а не только на финише
@@ -13,9 +14,21 @@ const BUYS_PER_RACE = 6   // игрок докупает по ходу заез�
 // дешевле по времени прогона, чаще — ничего не меняет.
 const DRIVER_EVERY = 10
 
+// Драйвер закреплён за классом («Assign your driver to a class» [F]), поэтому
+// при переходе игрок забирает пятёрку с собой — иначе лучшие остаются работать
+// на класс, в который он больше не зайдёт. Тем же кодом, что кнопка Auto в
+// интерфейсе: до этого шага перестановка между классами была НЕВОЗМОЖНА и в
+// игре тоже (`assign` отказывал занятому драйверу), то есть стенд играл бы в
+// то, чего игроку не дают.
+const takeSquad = (state, classId) =>
+  state.roster.autoManage(classId, { reassign: true })
+
 // Прогон на сотни игровых часов: заезд считается ранжированием формы
 // (см. fastrace.js), награды — общим с игрой RaceRewards.
-export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600, career = careerBot }) {
+export function fastSim({
+  hours = 24, policy, seed = 1, sampleEverySec = 600,
+  career = careerBot, classPlan = stayFirst,
+}) {
   clock.reset()
   localStorage.clear()
   const rng = new SeededRandom(seed)
@@ -35,6 +48,9 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600, ca
   let draws = 0
   let skills = 0
   let nextSample = 0
+  // Когда и во что игрок переехал: без этого списка непонятно, чем именно
+  // отличаются стратегии, — итоговая сумма показывает только «лучше/хуже».
+  const switches = []
 
   for (let race = 0; race < totalRaces; race++) {
     const sec = race * RACE.durationSec
@@ -54,6 +70,14 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600, ca
     earned += state.cash - cashBefore
     places[position]++
     purchases += policy(state)
+    // Переход СТРОГО до драйверов и карьеры: и то и другое работает с активным
+    // классом, и на кадре перехода они обязаны обслуживать уже новый.
+    if (classPlan(state, { race, totalRaces }, takeSquad)) {
+      switches.push({
+        sec, to: state.activeClass, earned,
+        idx: state.clsDef.index, price: CLASS_UNLOCK_PRICES[state.clsDef.index],
+      })
+    }
     if (race % DRIVER_EVERY === 0) { draws += driverBot(state); skills += career(state) }
 
     for (const price of CLASS_UNLOCK_PRICES) {
@@ -66,10 +90,14 @@ export function fastSim({ hours = 24, policy, seed = 1, sampleEverySec = 600, ca
         sec, earned, incomePerSec: state.incomePerSec, fans: state.cls.fans,
         power: state.teamPower, league: state.cls.league,
         squad: sq.off + sq.def, draws, skills, career: state.career.level,
+        cls: state.clsDef.index,
         levels: Object.values(state.cls.levels).reduce((a, b) => a + b, 0),
       })
     }
   }
 
-  return { hours, races: totalRaces, purchases, draws, skills, earned, places, samples, milestones, state }
+  return {
+    hours, races: totalRaces, purchases, draws, skills, earned,
+    places, samples, milestones, switches, state,
+  }
 }

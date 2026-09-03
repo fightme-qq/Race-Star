@@ -1,7 +1,8 @@
 import './headless.js'
 import { fastSim } from './fastsim.js'
 import { cheapestFirst, resetPolicyCache } from './policies.js'
-import { MILESTONE_TARGETS, scoreRun } from './targets.js'
+import { switchRoi } from './classplan.js'
+import { MILESTONE_TARGETS, unlockSec, scoreRun } from './targets.js'
 import { ECONOMY, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { RACE_CLASSES } from '../../src/config/classes.js'
 import { SeededRandom } from '../../src/utils/rng.js'
@@ -16,7 +17,6 @@ import { SeededRandom } from '../../src/utils/rng.js'
 export function applyTune(p) {
   resetPolicyCache()
   ECONOMY.leaguePrizeMult = p.leaguePrizeMult
-  ECONOMY.classFanMult = p.classFanMult
   ECONOMY.prizeSeconds = p.prizeSeconds
   SEASON.promoteRatio = p.promoteRatio
   // Первая ступень 190 — ROOKIE снята с кадров [F], дальше геометрия [X].
@@ -36,7 +36,10 @@ export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
   let score = 0
   let last = null
   for (const seed of seeds) {
-    last = fastSim({ hours, policy: cheapestFirst, seed })
+    // Класс ведёт switchRoi: прогон одним классом не платит ни одной цены
+    // разблокировки, а все пять вех — это ровно они. Подбор на нём мерил бы
+    // «за сколько накопит», а не «за сколько дойдёт».
+    last = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchRoi })
     score += scoreRun(last)
   }
   return { score: score / seeds.length, run: last }
@@ -61,10 +64,13 @@ const SPACE = {
   // к нижней границе 1.05. Счёт не возражал: цель по лиге выполняется сама
   // собой, потому что лестницу проходят не по желанию.
   leaguePrizeMult: [1.45, 3.00],
-  // classFanMult в SPACE НЕТ намеренно: прогон идёт одним классом (racing,
-  // index 0), значит множитель класса в него не входит вовсе и перебор
-  // «подбирал» бы координату, которой не чувствует. Значение остаётся [X] и
-  // непроверенным стендом — это записано в balance.js.
+  // classFanMult в SPACE по-прежнему НЕТ, но причина теперь другая. Раньше —
+  // «прогон идёт одним классом, координата не чувствуется». Теперь стенд
+  // переходит между классами и координату чувствует прекрасно, зато она
+  // ПЕРЕСТАЛА БЫТЬ СВОБОДНОЙ: цены разблокировки идут шагом x25 [F], а лесенка
+  // вех строится как r = 5 / sqrt(c) (вывод — в balance.js и targets.js).
+  // Подбирать c против вех, выведенных из c, значит подгонять число под самого
+  // себя — счёт будет нулевым при любом значении.
   leagueStep:    [1.20, 1.90],
   promoteRatio:  [0.6, 2.6],   // счёт сезона для повышения = races * ratio
   prizeSeconds:  [4, 300],     // приз за 1-е место в секундах дохода
@@ -90,6 +96,17 @@ const SEED_POINTS = [
   // Третий прогон, счёт 1.243 — первая точка, где повышение в лиге выгодно.
   { parkPg: 2.4989, fanPg: 2.5443, leaguePrizeMult: 1.4500,
     leagueStep: 1.4898, promoteRatio: 1.9631, prizeSeconds: 5.6948 },
+  // Шаг 3a, счёт 4.012 против 7.313 у действующей точки — и всё же В КОНФИГ ОНА
+  // НЕ ВЗЯТА. Счёт она улучшает единственным способом: роняет leagueStep до
+  // 1.348, игрок доезжает до 13-й лиги из 14, множитель призовых 1.96^13 даёт
+  // x3400, заработок раздувается с $196B до $44T, и шестой класс открывается
+  // на 7.4-м дне при цели 26. То есть штраф за «не дошёл» (ln(12)^2 = 6.17)
+  // перевешивает разгон лиг, и оптимизатор честно меняет дизайн на счёт.
+  // Держим здесь как отрицательный результат: конфликт не в коэффициентах.
+  // Со счётом точек шагов 1-4 не сравнивать — с шага 3a вехи считаются по
+  // факту открытия класса, а не по накоплению на его цену.
+  // { parkPg: 4.2885, fanPg: 2.4447, leaguePrizeMult: 1.9573,
+  //   leagueStep: 1.3480, promoteRatio: 1.9242, prizeSeconds: 4.7896 },
 ]
 
 const sampleLog = (rng, [lo, hi]) => Math.exp(rng.float(Math.log(lo), Math.log(hi)))
@@ -134,15 +151,16 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const [k, v] of Object.entries(best.p)) console.log(`  ${k}: ${v.toFixed(4)}`)
 
   const { run } = evaluate(best.p, { hours: 700, seeds: [1] })
-  console.log('\n  веха     цель    вышло')
+  console.log('\n  веха     цель    открыт')
   for (const t of MILESTONE_TARGETS) {
-    const a = run.milestones[t.price]
-    console.log(`  ${String(t.price).padStart(11)}  ${t.label.padStart(5)}  ` +
+    const a = unlockSec(run, t.price)
+    console.log(`  ${String(t.price).padStart(11)}  ${t.label.padStart(6)}  ` +
       (a ? (a / 3600).toFixed(1) + 'ч' : 'не дошёл'))
   }
-  const levels = Object.values(run.state.cls.levels).reduce((a, b) => a + b, 0)
+  const levels = Object.values(run.state.classes)
+    .reduce((a, c) => a + Object.values(c.levels).reduce((x, y) => x + y, 0), 0)
   console.log(`\n  уровней ${levels} | побед ${(100 * run.places[1] / run.races).toFixed(1)}% ` +
-    `| лига ${run.state.cls.league} | фанатов ${Math.round(run.state.cls.fans)}` +
+    `| класс ${run.state.clsDef.index} | лига ${run.state.cls.league}` +
     ` | приток фанатов x${(run.state.agg.fansPerRace / 10).toFixed(1)}`)
   console.log('  лиги:', LEAGUES.map((l) => l.power).join(' '))
 }

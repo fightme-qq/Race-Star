@@ -120,7 +120,10 @@ export class SquadView extends Phaser.GameObjects.Container {
   }
 
   auto() {
-    const res = this.roster.autoManage(this.classId)
+    // С обменом: после перехода в новый класс лучшая пятёрка остаётся в
+    // прежнем, и достать её иначе нельзя — в резерве этих драйверов нет.
+    // Обмен, а не изъятие: чужой состав остаётся полным (см. Roster.assign).
+    const res = this.roster.autoManage(this.classId, { reassign: true })
     this.toast(res?.trained?.xp
       ? `Auto: squad updated, +${res.trained.xp} XP`
       : 'Auto: squad updated', PAL.accent)

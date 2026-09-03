@@ -12,6 +12,7 @@
     "sim": "node tools/sim/report.js",
     "sim:tune": "node tools/sim/tune.js",
     "sim:race": "node tools/sim/fastrace.js",
+    "sim:why": "node tools/sim/why.js",
     "smoke": "node tools/smoke.mjs",
     "shot": "node tools/shot.mjs",
     "diff": "node tools/refdiff.mjs",

@@ -9,6 +9,13 @@ import { racerShape, placeDist } from '../../src/systems/RaceModel.js'
 const buyableKeys = (state) =>
   state.clsDef.upgrades.filter((u) => u.currency === 'cash').map((u) => u.key)
 
+// Покупка разрешена, только если после неё останется резерв на разблокировку
+// класса (его выставляет tools/sim/classplan.js). Без резерва бот тратит всё в
+// ноль каждую гонку, и цена класса набирается лишь тем единичным призом, что
+// её перекрыл, — до пятого и шестого класса прогон не доходил вовсе.
+const affordable = (state, key) =>
+  state.canBuy(key) && state.cash - state.priceOf(key) >= (state.simReserve || 0)
+
 // beatProb / placeDist переехали в src/systems/RaceModel.js: с Этапа 4 шанс
 // зависит не только от суммы статов, но и от расклада между ними, и держать
 // формулу отдельно от гонки значило бы подбирать баланс по чужой модели.
@@ -33,7 +40,7 @@ const seasonPoints = (dist) =>
 const reachCache = new Map()
 export const resetPolicyCache = () => reachCache.clear()
 
-function reachableLeague(shape) {
+export function reachableLeague(shape) {
   const key = Math.round(shape.power * 4) + ':' + Math.round(shape.tilt * 200)
   let hit = reachCache.get(key)
   if (hit === undefined) {
@@ -119,7 +126,7 @@ const MAX_BUYS_PER_CALL = 2000
 export const cheapestFirst = (state) => {
   let bought = 0
   while (bought < MAX_BUYS_PER_CALL) {
-    const keys = buyableKeys(state).filter((k) => state.canBuy(k))
+    const keys = buyableKeys(state).filter((k) => affordable(state, k))
     if (!keys.length) break
     keys.sort((a, b) => state.priceOf(a) - state.priceOf(b))
     state.buy(keys[0]); bought++
@@ -131,7 +138,7 @@ export const cheapestFirst = (state) => {
 export const economyOnly = (state) => {
   let bought = 0
   while (bought < MAX_BUYS_PER_CALL) {
-    const keys = buyableKeys(state).filter((k) => k[0] === 'e' && state.canBuy(k))
+    const keys = buyableKeys(state).filter((k) => k[0] === 'e' && affordable(state, k))
     if (!keys.length) break
     keys.sort((a, b) => state.priceOf(a) - state.priceOf(b))
     state.buy(keys[0]); bought++
@@ -147,7 +154,7 @@ export const roiGreedy = (state) => {
     const before = ratePerSec(state)
     let best = null
     for (const key of buyableKeys(state)) {
-      if (!state.canBuy(key)) continue
+      if (!affordable(state, key)) continue
       const price = state.priceOf(key)
       const lv = state.levelOf(key)
       state.cls.levels[key] = lv + 1

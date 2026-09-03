@@ -96,12 +96,41 @@ export class Roster {
     return hit
   }
 
+  // Где именно занят драйвер: [classId, slot] или null.
+  squadSlotOf(uid) {
+    for (const [id, list] of Object.entries(this.squads)) {
+      const i = list.indexOf(uid)
+      if (i >= 0) return [id, i]
+    }
+    return null
+  }
+
   // Swap Driver: резервный встаёт в слот, прежний уходит в резерв.
+  //
+  // Драйвер, занятый в составе ДРУГОГО класса, тоже берётся — они меняются
+  // местами. Раньше здесь стоял отказ (`inSquad(uid)` -> false), и это была не
+  // строгость, а тупик: составы у классов разные, гоняет только активный, и
+  // после перехода в новый класс лучшая пятёрка навсегда оставалась работать на
+  // класс, в который игрок больше не зайдёт. Переставить её было НЕЧЕМ — в
+  // резерве этих драйверов нет по определению.
+  // Именно обмен, а не освобождение слота: дыра в чужом составе заполнилась бы
+  // новыми стартовыми при следующей загрузке (`ensureStarters`), то есть
+  // переход между классами печатал бы драйверов из воздуха.
   assign(classId, slot, uid) {
     const list = this.squads[classId]
     if (!list || slot < 0 || slot >= SQUAD_SIZE) return false
-    if (!this.get(uid) || this.inSquad(uid)) return false
+    if (!this.get(uid)) return false
+    const busy = this.squadSlotOf(uid)
+    if (busy && busy[0] === classId && busy[1] === slot) return false
+    const prev = list[slot]
     list[slot] = uid
+    if (busy) {
+      // Тот же массив, если обмен внутри одного состава, — порядок операций
+      // выбран так, что это работает без отдельной ветки.
+      const other = this.squads[busy[0]]
+      if (prev) other[busy[1]] = prev
+      else other.splice(busy[1], 1)
+    }
     this.touch()
     return true
   }
@@ -169,7 +198,13 @@ export class Roster {
   // Автосостав: merge дубликатов -> топ-5 по рейтингу в состав -> остальных
   // скормить сильнейшему. Этим же ходит бот в балансном стенде, поэтому
   // логика живёт здесь, а не в UI.
-  autoManage(classId) {
+  //
+  // `reassign` — забирать ли драйверов из составов ДРУГИХ классов. По умолчанию
+  // нет: молча разобрать соседний состав — не то, чего ждут от кнопки. Но после
+  // перехода в новый класс это единственный осмысленный ход, поэтому кнопка
+  // Auto и бот стенда зовут её с обменом (см. assign: слоты меняются местами,
+  // чужой состав остаётся полным).
+  autoManage(classId, { reassign = false } = {}) {
     const list = this.squads[classId]
     if (!list) return null
 
@@ -183,11 +218,16 @@ export class Roster {
     const wanted = []
     for (const d of ranked) {
       if (wanted.length >= SQUAD_SIZE) break
-      // Драйвер, занятый в составе другого класса, не забираем.
-      if (this.inSquad(d.uid) && !list.includes(d.uid)) continue
+      if (!reassign && this.inSquad(d.uid) && !list.includes(d.uid)) continue
       wanted.push(d.uid)
     }
-    for (let i = 0; i < wanted.length; i++) list[i] = wanted[i]
+    // Через assign, а не присваиванием в list: только он умеет обмен слотами с
+    // чужим составом. Прямая запись оставила бы драйвера числиться в двух
+    // командах сразу, и `inSquad` начал бы врать.
+    for (let i = 0; i < wanted.length; i++) {
+      if (list[i] === wanted[i]) continue
+      this.assign(classId, i, wanted[i])
+    }
     this.touch()
 
     const best = this.squad(classId).sort((a, b) => ratingOf(b) - ratingOf(a))[0]
