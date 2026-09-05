@@ -52,8 +52,8 @@ const COMBAT_SLOTS = [
 // прежний тупик — класс 4 и «не дошёл» (3.57 … 4.21).
 const ECONOMY_SLOTS = [
   { key: 'e0', name: 'Ticket Marketing',     tag: 'income', flat: 6,  gain: 3,  unit: '$', effect: 'cashPerRace', anchor: { level: 0, price: 10 },   pg: 1.431 },
-  { key: 'e1', name: 'Parking',              tag: 'income', flat: 0,  gain: 15, unit: '$', effect: 'cashPerRace', anchor: { level: 8, price: 4860 }, pg: 2.4989 },
-  { key: 'e2', name: 'Grandstands',          tag: 'fans',   flat: 10, gain: 5,  unit: '',  effect: 'fansPerRace', anchor: { level: 5, price: 9050 }, pg: 2.2267 },
+  { key: 'e1', name: 'Parking',              tag: 'income', flat: 0,  gain: 15, unit: '$', effect: 'cashPerRace', anchor: { level: 8, price: 4860 }, pg: 2.3068 },
+  { key: 'e2', name: 'Grandstands',          tag: 'fans',   flat: 10, gain: 5,  unit: '',  effect: 'fansPerRace', anchor: { level: 5, price: 9050 }, pg: 2.0555 },
   { key: 'e3', name: 'Victory Celebrations', tag: 'income', flat: 0,  gain: 9,  unit: '$', effect: 'cashPerWin',  anchor: { level: 0, price: 50 },   pg: 1.646 },
 ]
 
