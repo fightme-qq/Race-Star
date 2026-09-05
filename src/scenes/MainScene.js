@@ -13,6 +13,7 @@ import { DriversModal } from '../ui/drivers/DriversModal.js'
 import { CareerModal } from '../ui/career/CareerModal.js'
 import { LeaguesModal } from '../ui/leagues/LeaguesModal.js'
 import { RewardsModal } from '../ui/rewards/RewardsModal.js'
+import { ShopModal } from '../ui/shop/ShopModal.js'
 import { formatMoney } from '../utils/format.js'
 
 const NAV_H = 70
@@ -48,6 +49,7 @@ export class MainScene extends Phaser.Scene {
       if (i === 2) { this.openDrivers(); return }
       if (i === 3) { this.openLeagues(); return }
       if (i === 4) { this.openRewards(); return }
+      if (i === 5) { this.openShop(); return }
       this.toasts.show(tab.title + ' — coming in a later stage', PAL.muted)
     })
 
@@ -141,6 +143,17 @@ export class MainScene extends Phaser.Scene {
     })
   }
 
+  openShop() {
+    if (this.modal?.active) return
+    this.grid.locked = true
+    this.nav.setActive(5)
+    this.modal = new ShopModal(this, this.state, {
+      toast: (text, color) => this.toasts.show(text, color),
+      onChange: () => { this.state.save(); this.refreshUI() },
+      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
+    })
+  }
+
   openCareer() {
     if (this.modal?.active) return
     this.grid.locked = true
@@ -181,6 +194,7 @@ export class MainScene extends Phaser.Scene {
     this.racePanel.refresh(this.race?.sim)
     this.grid.refresh()
     this.nav.setDot(4, this.state.rewardsPending > 0)
+    this.nav.setDot(5, this.state.shopPending > 0)
   }
 
   update(time, delta) {

@@ -36,7 +36,9 @@ export function passRows(rw) {
       premium: {
         reward: passReward(lv, true),
         claimed: rw.pass.claimedPremium.includes(lv),
-        // Премиум-ветка ждёт магазина (шаг 5): `Rookie Pass $4.99` [F] — IAP.
+        // Премиум-ветку открывает `Rookie Pass` из магазина (шаг 5). Флаг лежит
+        // в rw.pass, а тот целиком пересоздаётся в rollover, — значит покупка
+        // сгорает вместе с сезоном сама, без отдельного срока.
         claimable: rw.pass.premium && lv <= level && !rw.pass.claimedPremium.includes(lv),
       },
     }

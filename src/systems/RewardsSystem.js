@@ -2,6 +2,7 @@ import {
   DAILY_TASKS, WEEKLY_TASKS, TASK_TOKENS, METRICS, LOGIN, MAIL, DAY_MS, EPOCH_UTC,
 } from '../config/rewards.js'
 import { passIndex } from './SeasonPass.js'
+import { freshShop } from './ShopSystem.js'
 
 // Задачи, Season Pass, ежедневный вход и почта — чистые данные и математика,
 // без единого объекта сцены (правило 2). Награду ВЫДАЁТ GameState: здесь мы
@@ -34,6 +35,10 @@ export function freshRewards(now = Date.now()) {
     pass: { key: passIndex(now), season: 1, tokens: 0, claimedFree: [], claimedPremium: [], premium: false },
     login: { key: '', cycleDay: 0, streak: 0, total: 0, milestones: [] },
     mail: [],
+    // Дневные счётчики магазина (вкладка 6) живут здесь, а не в своём ведре: у
+    // них та же граница суток, что у задач, и подпись «Resets in» на двух
+    // экранах обязана считаться одним кодом.
+    shop: { key: dayKey(now), ...freshShop() },
   }
 }
 
@@ -47,6 +52,9 @@ export function rollover(rw, now = Date.now()) {
     rw.daily = { key: dk, progress: zeroProgress(), claimed: [] }
     changed.daily = true
   }
+  // Сейв, снятый до шага 5, ведра магазина не содержит — без этой ветки первый
+  // же вызов упал бы на `rw.shop.packs`.
+  if (!rw.shop || rw.shop.key !== dk) rw.shop = { key: dk, ...freshShop() }
   const wk = weekIndex(now)
   if (rw.weekly.key !== wk) {
     rw.weekly = { key: wk, progress: zeroProgress(), claimed: [] }

@@ -19,6 +19,10 @@ import {
   claimLogin, claimMail, pushMail, loginState, mailUnread, resetInSec,
 } from './RewardsSystem.js'
 import { claimPass, passProgress, passRows, passClaimable, passLeftMs } from './SeasonPass.js'
+import {
+  cashPackRows, takeCashPack, freeState, takeDailyGems, takeAdGems,
+  rookiePassState, takeRookiePass,
+} from './ShopSystem.js'
 
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
@@ -129,6 +133,56 @@ export class GameState {
   claimMailReward(id) { return this.grant(claimMail(this.rw, id)) }
 
   mail(title, body, reward = null) { pushMail(this.rw, { title, body, reward }) }
+
+  // --- Магазин (вкладка 6) ------------------------------------------------
+  // Работает ровно то, что в оригинале стоит гемов; всё, что стоит долларов,
+  // вкладка показывает витриной и не продаёт (см. шапку config/shop.js).
+  get cashPacks() { return cashPackRows(this.rw, this.gems) }
+  get shopFree() { return freeState(this.rw) }
+  get rookiePass() { return rookiePassState(this.rw, this.gems) }
+
+  // Деньги за гемы. Выплата — секунды СУММАРНОГО дохода (правило 8b): пак не
+  // привязан к классу, в отличие от призовых.
+  buyCashPack(id) {
+    const row = this.cashPacks.find((r) => r.pack.id === id)
+    if (!row?.available || !this.spendGems(row.pack.gems)) return 0
+    const seconds = takeCashPack(this.rw, id)
+    const cash = this.incomePerSec * seconds
+    this.addCash(cash)
+    return cash
+  }
+
+  // Бесплатные гемы идут МИМО дневного капа, как и награды вкладки 5: кап
+  // 150/день [F] снят с попапа финиша и ограничивает гемы за победы.
+  claimDailyGems() {
+    const gems = takeDailyGems(this.rw)
+    if (gems) this.addGems(gems, false)
+    return gems
+  }
+
+  // Реклама магазина засчитывается в дневную задачу `Watch an ad` [F] наравне
+  // с бустом, но ведёт свой счётчик: лимит 6 на класс [F] — это лимит буста.
+  watchShopAd() {
+    const gems = takeAdGems(this.rw)
+    if (!gems) return 0
+    this.addGems(gems, false)
+    this.track('adWatch')
+    return gems
+  }
+
+  buyRookiePass() {
+    const st = this.rookiePass
+    if (st.owned || !st.affordable) return false
+    if (!this.spendGems(st.def.gems)) return false
+    return takeRookiePass(this.rw)
+  }
+
+  // Красная точка на вкладке 6 — только по тому, что и правда можно забрать
+  // бесплатно. Гореть из-за витрины, которая не продаётся, она не должна.
+  get shopPending() {
+    const free = this.shopFree
+    return (free.dailyReady ? 1 : 0) + free.adsLeft
+  }
 
   // --- Ссылки ------------------------------------------------------------
   // activeClass — свойство с сеттером: смена класса обязана сбросить кэш

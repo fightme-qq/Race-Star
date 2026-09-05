@@ -267,6 +267,43 @@ await step('daily reward', async () => {
   }, { before, after })
 })
 
+// 7c. Магазин: вкладка 6 -> бесплатные гемы -> реклама -> «деньги за гемы».
+// Проверяется цепочка валют целиком: бесплатное поднимает гемы, пак меняет их
+// на деньги, дневной лимит гасит кнопку. Тапами, потому что все найденные баги
+// UI были во входном слое, а не в математике.
+await step('вкладка магазина', async () => {
+  await tapObj('nav.items.5.zone')
+  const opened = await page.evaluate(() =>
+    !!window.__game.scene.getScene('Main').modal?.view?.daily)
+  const before = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { gems: s.gems, cash: s.cash, ads: s.shopFree.adsLeft }
+  })
+  await tapObj('modal.view.daily.btn')          // Free Daily Gems
+  await tapObj('modal.view.ad.btn')             // Free Gems за рекламу
+  const afterFree = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { gems: s.gems, ads: s.shopFree.adsLeft, ready: s.shopFree.dailyReady }
+  })
+  await tapObj('modal.tabs.1')                  // вкладка CASH
+  const cashBefore = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { gems: s.gems, cash: s.cash }
+  })
+  await tapObj('modal.view.rows.0.btn')         // Instant Cash
+  return page.evaluate((ctx) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const ok = ctx.opened
+      && ctx.afterFree.gems > ctx.before.gems
+      && !ctx.afterFree.ready && ctx.afterFree.ads === ctx.before.ads - 1
+      && s.gems < ctx.cashBefore.gems && s.cash > ctx.cashBefore.cash
+      && s.cashPacks[0].left === s.cashPacks[0].pack.perDay - 1
+    main.modal.close()
+    return { ok, gems: s.gems, left: s.cashPacks[0].left, was: ctx }
+  }, { opened, before, afterFree, cashBefore })
+})
+
 // 8. Закрытие: сейв переживает перезагрузку страницы.
 await step('сейв и закрытие', async () => {
   await page.evaluate(() => {

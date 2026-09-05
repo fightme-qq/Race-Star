@@ -11,6 +11,9 @@ import { freshRewards, rollover, trackMetric, tasksOf, claimTask, claimLogin, lo
 import { passProgress, passRows, claimPass } from '../../src/systems/SeasonPass.js'
 import { pushMail, mailUnread } from '../../src/systems/RewardsSystem.js'
 import { PASS, MAIL } from '../../src/config/rewards.js'
+import { freeState, takeDailyGems, takeAdGems, takeCashPack, takeRookiePass }
+  from '../../src/systems/ShopSystem.js'
+import { FREE, CASH_PACKS } from '../../src/config/shop.js'
 
 const DAY = 86400000
 const ok = (name, cond, extra='') => console.log((cond?'  ok  ':'ПРОВАЛ')+'  '+name+(extra?'  '+extra:''))
@@ -69,6 +72,37 @@ for (let i = 0; i < MAIL.max + 15; i++) {
 ok('почта ограничена', rw.mail.length === MAIL.max, 'len=' + rw.mail.length)
 ok('сверху свежее', rw.mail[0].title === 'T' + (MAIL.max + 14), rw.mail[0].title)
 ok('непрочитанных не больше капа', mailUnread(rw) <= MAIL.max)
+
+// --- Магазин (шаг 5) -----------------------------------------------------
+// Дневные счётчики магазина сидят в том же ведре, что задачи, и обязаны
+// сбрасываться той же границей суток. Проверяем именно это, а не покупку:
+// расход гемов — дело GameState, а здесь решает КАЛЕНДАРЬ.
+const rw2 = freshRewards(Date.now())
+ok('магазин: бесплатное доступно', freeState(rw2).dailyReady && freeState(rw2).adsLeft === FREE.adsPerDay)
+takeDailyGems(rw2)
+while (takeAdGems(rw2));
+ok('магазин: за день выбирается', !freeState(rw2).dailyReady && freeState(rw2).adsLeft === 0)
+const vault = CASH_PACKS[CASH_PACKS.length - 1]
+ok('пак выдаёт секунды', takeCashPack(rw2, vault.id) > 0)
+ok('дневной лимит держит', takeCashPack(rw2, vault.id) === 0)
+clock.advance(DAY)
+rollover(rw2, Date.now())
+ok('магазин сброшен сутками', freeState(rw2).dailyReady && takeCashPack(rw2, vault.id) > 0)
+
+// Сейв, снятый до шага 5, ведра магазина не содержит — rollover обязан его
+// достроить, иначе первое же открытие вкладки падает на пустом объекте.
+const legacy = freshRewards(Date.now())
+delete legacy.shop
+rollover(legacy, Date.now())
+ok('старый сейв дополняется', !!legacy.shop && freeState(legacy).dailyReady)
+
+// Rookie Pass живёт один сезон пасса: отдельного срока у него нет, флаг лежит
+// в rw.pass и обязан сгореть вместе с ним.
+takeRookiePass(legacy)
+ok('премиум открылся', passRows(legacy)[0].premium.claimable === false || legacy.pass.premium)
+clock.advance(11 * DAY)
+rollover(legacy, Date.now())
+ok('Rookie Pass сгорел с сезоном', legacy.pass.premium === false)
 
 // Итог: провал здесь означает, что сломано ВРЕМЯ, а не награда. Периоды —
 // единственная часть вкладки 5, которую нельзя проверить ни тапом (smoke не

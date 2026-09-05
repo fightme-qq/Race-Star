@@ -12,10 +12,12 @@ const ROW_H = 46
 // и шкала имеет 35 уровней (`10 / 35`) [F]. Ветки в билде названы
 // Rookie/Champion/Premium [E] — у нас две колонки: бесплатная и премиум.
 //
-// Премиум НЕ покупается: в оригинале это IAP `Rookie Pass $4.99` [F], то есть
-// он приходит вместе с магазином (шаг 5). Ветка нарисована и заблокирована —
-// придумать ей цену в гемах значило бы поставить число, которое придётся
-// выбрасывать через шаг.
+// Премиум-ветка открывается покупкой `Rookie Pass`. В оригинале это IAP $4.99
+// [F]; у нас — единственная позиция магазина с ценой в гемах [X], и это
+// осознанное исключение из правила «долларовое не продаём» (шапка
+// config/shop.js): иначе половина этого экрана осталась бы мёртвой навсегда.
+// Кнопка покупает прямо отсюда — гонять игрока на вкладку 6 ради одного
+// действия, которое относится к пассу, значило бы прятать его.
 export class PassView extends Phaser.GameObjects.Container {
   constructor(scene, state, w, { toast, onChange }) {
     super(scene, 0, 0)
@@ -34,7 +36,7 @@ export class PassView extends Phaser.GameObjects.Container {
     // подписи. Ширины тут впритык, поэтому подпись короткая.
     this.tokens = label(scene, 16, 84, '', { size: 11, color: CSS.muted })
     this.buyBtn = new Button(scene, w / 2, 112, w - 32, 30, 'Champion Pass', { size: 11, fill: PAL.panelAlt })
-    this.buyBtn.on('press', () => this.toast?.('Champion Pass arrives with the Shop', PAL.muted))
+    this.buyBtn.on('press', () => this.buyPass())
 
     this.headFree = label(scene, 0, 0, 'FREE', { size: 10, bold: true, color: CSS.muted, align: 'center' })
     this.headPrem = label(scene, 0, 0, 'CHAMPION', { size: 10, bold: true, color: CSS.dim, align: 'center' })
@@ -56,6 +58,16 @@ export class PassView extends Phaser.GameObjects.Container {
 
     this.boxH = 0
     scene.add.existing(this)
+  }
+
+  buyPass() {
+    if (this.state.rookiePass.owned) return
+    if (!this.state.buyRookiePass()) {
+      this.toast?.('Not enough Gems', PAL.red)
+      return
+    }
+    this.toast?.('Rookie Pass unlocked — Champion rewards open', PAL.gold)
+    this.onChange?.()
   }
 
   claim(level, premium) {
@@ -86,6 +98,11 @@ export class PassView extends Phaser.GameObjects.Container {
     this.tokens.setText(p.need
       ? `${p.into} / ${p.need} 🪙 to next level  ·  ${p.tokens} earned`
       : `Pass complete  ·  ${p.tokens} 🪙 earned`)
+
+    const rp = s.rookiePass
+    this.buyBtn.setText(rp.owned ? 'Champion Pass active' : `Rookie Pass  ·  ${rp.def.gems} 💎`)
+    this.buyBtn.setFill(rp.owned ? PAL.line : PAL.gold)
+    this.buyBtn.setEnabled(!rp.owned && rp.affordable)
 
     const top = HEAD_H + 12
     this.headFree.setPosition(62 + (this.boxW - 90) / 4, top)

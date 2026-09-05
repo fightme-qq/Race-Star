@@ -32,6 +32,13 @@ export const SCREENS = {
   rewardsPass: { open: 'openRewards', cash: 1e6, races: 22, tab: 1, claimTasks: true },
   rewardsDaily: { open: 'openRewards', cash: 1e6, races: 22, tab: 2 },
   rewardsMail: { open: 'openRewards', cash: 1e6, races: 22, tab: 3 },
+  // Магазин — четыре вида в одном окне, как и награды: снимаем каждый, потому
+  // что наложения видны только на своей вкладке. Кадра оригинала нет ни для
+  // одного из них (вкладки 6 нет на всех 42), сверять не с чем — только `shot`.
+  shop: { open: 'openShop', cash: 1e6, tab: 0 },
+  shopCash: { open: 'openShop', cash: 1e6, races: 6, tab: 1 },
+  shopGems: { open: 'openShop', cash: 1e6, tab: 2 },
+  shopPasses: { open: 'openShop', cash: 1e6, tab: 3 },
   parallel: { open: null, cash: 30e6, unlock: 3, fans: 4e6 },
   parallelClasses: { open: 'openClasses', cash: 30e6, unlock: 3, fans: 4e6 },
 }

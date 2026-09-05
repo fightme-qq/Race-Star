@@ -4,7 +4,7 @@ import { GameState } from '../../src/systems/GameState.js'
 import { applyRaceResult } from '../../src/systems/RaceRewards.js'
 import { RACE, CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 import { fastRace } from './fastrace.js'
-import { driverBot, careerBot, rewardsBot } from './policies.js'
+import { driverBot, careerBot, rewardsBot, shopBot } from './policies.js'
 import { stayFirst } from './classplan.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
@@ -48,6 +48,13 @@ export function fastSim({
   let draws = 0
   let skills = 0
   let claims = 0
+  let deals = 0
+  let shopCash = 0
+  // Куда уходят гемы: в магазин или в гачу. Без этого разделения шаг 5
+  // непроверяем — обе траты живут в одном кошельке, и «магазин съел вторую ось
+  // силы» выглядит в отчёте ровно так же, как «магазин никому не нужен».
+  let gemsShop = 0
+  let gemsPacks = 0
   let nextSample = 0
   // Когда и во что игрок переехал: без этого списка непонятно, чем именно
   // отличаются стратегии, — итоговая сумма показывает только «лучше/хуже».
@@ -83,7 +90,22 @@ export function fastSim({
     // иначе бот копит их лишний цикл и приток выглядит меньше, чем он есть.
     if (race % DRIVER_EVERY === 0) {
       claims += rewardsBot(state)
+      // Магазин — СТРОГО между наградами и гачей: собранные гемы должны дойти
+      // до дневных лимитированных паков, а в гачу уходит только остаток.
+      const cashBeforeShop = state.cash
+      const shop = shopBot(state)
+      deals += shop.deals
+      shopCash += state.cash - cashBeforeShop
+      // Расход гемов приходит из самого бота: магазин в том же заходе и выдаёт
+      // бесплатные гемы, и тратит их, поэтому разность кошелька занижала бы
+      // трату (подробности — в шапке shopBot).
+      gemsShop += shop.gems
+      // Заработанное магазином входит в `earned`: без этого разрыв стратегий
+      // (DECISION_GAP в tune.js) мерился бы по неполным деньгам.
+      earned += state.cash - cashBeforeShop
+      const gemsBeforeDraw = state.gems
       draws += driverBot(state)
+      gemsPacks += Math.max(0, gemsBeforeDraw - state.gems)
       skills += career(state)
     }
 
@@ -105,6 +127,7 @@ export function fastSim({
 
   return {
     hours, races: totalRaces, purchases, draws, skills, claims, earned,
+    deals, shopCash, gemsShop, gemsPacks,
     places, samples, milestones, switches, state,
   }
 }

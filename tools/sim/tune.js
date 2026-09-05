@@ -4,6 +4,7 @@ import { cheapestFirst, resetPolicyCache } from './policies.js'
 import { switchRoi, switchAsap } from './classplan.js'
 import { milestoneTargets, unlockSec, scoreRun } from './targets.js'
 import { ECONOMY, LEAGUES, SEASON } from '../../src/config/balance.js'
+import { SHOP } from '../../src/config/shop.js'
 import { RACE_CLASSES } from '../../src/config/classes.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
@@ -21,6 +22,7 @@ export function applyTune(p) {
   ECONOMY.classFanMult = p.classFanMult
   ECONOMY.idleClassShare = p.idleClassShare
   SEASON.promoteRatio = p.promoteRatio
+  SHOP.cashRateMult = p.cashRateMult
   // Первая ступень 190 — ROOKIE снята с кадров [F], дальше геометрия [X].
   LEAGUES.forEach((l, i) => { l.power = Math.round(190 * Math.pow(p.leagueStep, i)) })
   for (const cls of RACE_CLASSES) {
@@ -43,6 +45,24 @@ export function applyTune(p) {
 // вовсе: вехи-то как раз выполняются идеально.
 const DECISION_GAP = 1.25
 
+// Шаг 5 добавил магазину гемовый сток, и у него есть свой способ сломаться,
+// которого счёт по вехам не видит вовсе. Гемы — общий кошелёк двух трат: паки
+// «деньги за гемы» и гача. Если курс щедрый, весь приток уходит в магазин и
+// ВТОРАЯ ОСЬ СИЛЫ умирает; если скупой — вкладка декорация. Оба исхода дают
+// приличные вехи, потому что деньги в игре всё равно появляются.
+// Поэтому требование ставится прямо на долю: магазину должно доставаться
+// заметно, но меньше половины.
+const SHOP_SHARE = [0.12, 0.45]
+
+function shopPenalty(run) {
+  const total = run.gemsShop + run.gemsPacks
+  if (total < 1) return 4   // гемы не тратятся вовсе — сломан приток, а не доля
+  const share = run.gemsShop / total
+  if (share < SHOP_SHARE[0]) return 0.8 * Math.pow(Math.log(share / SHOP_SHARE[0]), 2)
+  if (share > SHOP_SHARE[1]) return 0.8 * Math.pow(Math.log(share / SHOP_SHARE[1]), 2)
+  return 0
+}
+
 export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
   applyTune(p)
   let score = 0
@@ -53,6 +73,7 @@ export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
     // «за сколько накопит», а не «за сколько дойдёт».
     last = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchRoi })
     score += scoreRun(last)
+    score += shopPenalty(last)
     const naive = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchAsap })
     const gap = last.earned / Math.max(1, naive.earned)
     if (gap < DECISION_GAP) score += 0.8 * Math.pow(Math.log(gap / DECISION_GAP), 2)
@@ -96,6 +117,9 @@ const SPACE = {
   leagueStep:    [1.20, 1.90],
   promoteRatio:  [0.6, 2.6],   // счёт сезона для повышения = races * ratio
   prizeSeconds:  [4, 300],     // приз за 1-е место в секундах дохода
+  // Курс паков «деньги за гемы» (config/shop.js). Границы широкие нарочно:
+  // это первое число магазина, и до прогона неизвестно даже, какого оно порядка.
+  cashRateMult:  [0.05, 20],
 }
 
 // Найденные предыдущими прогонами точки — чтобы расширение пространства
@@ -135,11 +159,16 @@ const SEED_POINTS = [
   { parkPg: 2.4989, fanPg: 2.5443, leaguePrizeMult: 1.4500,
     leagueStep: 1.4898, promoteRatio: 1.9631, prizeSeconds: 5.6948,
     classFanMult: 2.0, idleClassShare: 0.5 },
+  // Действующая точка шага 4 (счёт 0.876 ДО магазина). Держим здесь, чтобы
+  // новая координата курса не потеряла уже найденное по остальным семи.
+  { parkPg: 2.3068, fanPg: 2.0555, leaguePrizeMult: 1.4500,
+    leagueStep: 1.4898, promoteRatio: 1.8122, prizeSeconds: 5.85,
+    classFanMult: 2.0, idleClassShare: 0.5, cashRateMult: 1.0 },
 ]
 
 // Точки прежних шагов не знают двух новых координат, а applyTune пишет их в
 // ECONOMY как есть — undefined превратил бы весь прогон в NaN молча.
-const DEFAULTS = { classFanMult: 1.5625, idleClassShare: 0.5 }
+const DEFAULTS = { classFanMult: 1.5625, idleClassShare: 0.5, cashRateMult: 1.0 }
 const full = (p) => ({ ...DEFAULTS, ...p })
 
 const sampleLog = (rng, [lo, hi]) => Math.exp(rng.float(Math.log(lo), Math.log(hi)))

@@ -231,6 +231,49 @@ export function rewardsBot(state) {
   return claims
 }
 
+// Вкладка 6 глазами игрока. Порядок внутри не произволен и держит весь смысл
+// шага 5: сперва БЕСПЛАТНОЕ (гемы за день и за рекламу), потом ДНЕВНЫЕ
+// ЛИМИТИРОВАННЫЕ паки «деньги за гемы», и только потом остаток уходит в гачу
+// (driverBot вызывается следом). Обратный порядок означал бы, что игрок сначала
+// спускает всё в паки драйверов, а магазин видит пустой кошелёк, — и лимиты,
+// ради которых конструкция и сделана, никогда бы не связывали.
+//
+// Паки берём от лучшего курса к худшему: `Cash Vault` даёт больше секунд за гем,
+// чем `Instant Cash`, и при нехватке гемов правильный отказ — от дешёвого.
+// Расход гемов считается ВОКРУГ КАЖДОЙ ТРАТЫ, а не разностью кошелька до и
+// после. Первая версия мерила именно разность — и молча занижала долю магазина,
+// потому что он в том же заходе ВЫДАЁТ бесплатные гемы: 100 на входе, +35
+// бесплатных, −60 в паки, 75 на выходе, и разность показывает трату 25 вместо
+// 60. Метрика, ради которой всё это заведено (правило 26b), врала бы вдвое.
+export function shopBot(state) {
+  let deals = 0
+  let cash = 0
+  let gems = 0
+  const spend = (fn) => {
+    const before = state.gems
+    if (!fn()) return false
+    gems += Math.max(0, before - state.gems)
+    deals++
+    return true
+  }
+
+  if (state.claimDailyGems()) deals++
+  while (state.watchShopAd()) deals++
+  // Rookie Pass — единственная покупка магазина за гемы кроме паков. Берём его
+  // раньше денежных паков: премиум-ветка живёт один сезон пасса и не переносится,
+  // а деньги за гемы можно купить и завтра.
+  spend(() => state.buyRookiePass())
+  for (;;) {
+    const rows = state.cashPacks.filter((r) => r.available)
+    if (!rows.length) break
+    rows.sort((a, b) => b.rate - a.rate)
+    let got = 0
+    if (!spend(() => (got = state.buyCashPack(rows[0].pack.id)))) break
+    cash += got
+  }
+  return { deals, cash, gems }
+}
+
 export function driverBot(state) {
   const squad = state.roster.squad(state.activeClass)
   const weakest = squad.reduce((m, d) => Math.min(m, (d.off + d.def) / 2), Infinity)

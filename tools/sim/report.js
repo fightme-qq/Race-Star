@@ -56,6 +56,14 @@ for (const [name, policy] of Object.entries(POLICIES)) {
     .map((d) => d.rarity.slice(0, 3) + Math.round((d.off + d.def) / 2) +
       (d.stars ? '*' + d.stars : '') + (d.level ? '+' + d.level : ''))
   console.log(`паков ${r.draws} | состав ${squad.join(' ')}`)
+  // Магазин отчитывается ДОЛЕЙ ГЕМОВ, а не только суммой: гемы — общий кошелёк
+  // паков и гачи, и «магазин съел вторую ось силы» выглядит по деньгам ровно
+  // так же, как «магазин никому не нужен».
+  const gemsTotal = r.gemsShop + r.gemsPacks
+  console.log(`магазин: сделок ${r.deals} | выдал ${money(r.shopCash)} ` +
+    `(${(100 * r.shopCash / Math.max(1, r.earned)).toFixed(1)}% дохода) | ` +
+    `гемов в магазин ${(100 * r.gemsShop / Math.max(1, gemsTotal)).toFixed(0)}%, ` +
+    `в гачу ${(100 * r.gemsPacks / Math.max(1, gemsTotal)).toFixed(0)}%`)
 
   // Две колонки намеренно: «накопил» — когда денег стало достаточно, «открыл» —
   // когда игрок действительно перешёл. Расхождение и есть цена перехода.
