@@ -23,6 +23,15 @@ export const SCREENS = {
   // Кадра оригинала нет и здесь: это состояние «открыто три класса», в котором
   // видна строка параллельного дохода. Отдельный экран, а не правка `main`:
   // `main` сверяется с main-early.png, где класс ровно один.
+  // Вкладка наград — четыре вида в одном окне, и каждый надо снимать отдельно:
+  // наложения ловятся только глазами, а видны они лишь на своей вкладке.
+  // `races` нужны, чтобы счётчики задач и почта не были пустыми.
+  rewards: { open: 'openRewards', cash: 1e6, races: 22, tab: 0 },
+  // Пасс снимается с ЗАБРАННЫМИ задачами: на нулевой шкале все 35 строк
+  // одинаково серые, и ни граница «докуда дошёл», ни активная кнопка не видны.
+  rewardsPass: { open: 'openRewards', cash: 1e6, races: 22, tab: 1, claimTasks: true },
+  rewardsDaily: { open: 'openRewards', cash: 1e6, races: 22, tab: 2 },
+  rewardsMail: { open: 'openRewards', cash: 1e6, races: 22, tab: 3 },
   parallel: { open: null, cash: 30e6, unlock: 3, fans: 4e6 },
   parallelClasses: { open: 'openClasses', cash: 30e6, unlock: 3, fans: 4e6 },
 }
@@ -81,7 +90,13 @@ export async function goto(page, screen) {
     // следующем вернёт альфу обратно в 1.
     main.tweens.killTweensOf(main.finish)
     main.finish.setAlpha(0)
+    // Тосты живут 1.7 с на глубине 150 — выше модалок, и на кадре ложились
+    // поперёк содержимого вкладки. В игре так и задумано (это единственный
+    // отклик на действие внутри окна), но сверять композицию через них нельзя.
+    main.toasts.removeAll(true)
+    if (c.claimTasks) main.state.claimAllTaskRewards()
     if (c.open) main[c.open]()
+    if (c.tab != null) main.modal?.setTab?.(c.tab)
   }, cfg)
   await wait(page, 800)
 }

@@ -208,6 +208,29 @@ export function careerBot(state) {
   return spent
 }
 
+// Вкладка 5 глазами игрока: забрать всё, что забирается. Стенд обязан играть
+// во ВСЮ игру (правило 20), а награды — источник гемов помимо побед, то есть
+// они кормят гачу, а гача — вторую ось силы. Не собирать их значило бы
+// подбирать баланс по игроку, который не открывает половину экрана.
+//
+// Реклама здесь же: `Activate 2x` бесплатен и закрывает дневную задачу
+// `Watch an ad` [F]. Лимит 6 на класс [F] делает эту задачу выполнимой всего
+// 36 раз за прогон — расхождение с оригиналом, где рекламу смотрят и вне
+// буста; записано в FINDINGS.
+export function rewardsBot(state) {
+  let claims = 0
+  while (state.activateAdBoost()) claims++
+  if (state.claimAllTaskRewards()) claims++
+  for (const row of state.passRows) {
+    if (row.free.claimable && state.claimPassReward(row.level, false)) claims++
+  }
+  if (state.claimLoginReward().length) claims++
+  for (const msg of [...state.mailList]) {
+    if (!msg.claimed && msg.reward && state.claimMailReward(msg.id)) claims++
+  }
+  return claims
+}
+
 export function driverBot(state) {
   const squad = state.roster.squad(state.activeClass)
   const weakest = squad.reduce((m, d) => Math.min(m, (d.off + d.def) / 2), Infinity)

@@ -9,10 +9,16 @@ import {
   freshStandings, standingsRows, playerRank, promotionTarget, archiveSeason,
 } from './SeasonSystem.js'
 import { SaveSystem } from './SaveSystem.js'
+import { formatMoney } from '../utils/format.js'
 import {
   freshCareer, careerEffects, careerStats, addCareerXp,
   spendPoint, resetSkills, pointsFree, pointsSpent,
 } from './CareerSystem.js'
+import {
+  freshRewards, rollover, trackMetric, claimTask, claimAllTasks, tasksOf,
+  claimLogin, claimMail, pushMail, loginState, mailUnread, resetInSec,
+} from './RewardsSystem.js'
+import { claimPass, passProgress, passRows, passClaimable, passLeftMs } from './SeasonPass.js'
 
 const todayKey = () => new Date().toISOString().slice(0, 10)
 
@@ -57,8 +63,72 @@ export class GameState {
     for (const c of RACE_CLASSES) {
       if (this.classes[c.id].unlocked) this.roster.ensureStarters(c.id, c.index)
     }
+    this.rewards = { ...freshRewards(), ...(saved?.rewards ?? {}) }
+    rollover(this.rewards)
     this.lastSeen = saved?.lastSeen ?? Date.now()
   }
+
+  // --- Награды (вкладка 5) -----------------------------------------------
+  // Единая точка входа: сброс периодов проверяется при КАЖДОМ обращении, а не
+  // при запуске. Сутки могут наступить при открытой вкладке — гонки идут по
+  // минуте и игрок сидит в ней подолгу.
+  get rw() { rollover(this.rewards); return this.rewards }
+
+  track(metric, amount = 1) { trackMetric(this.rw, metric, amount) }
+
+  // Выдаёт награду и возвращает строку для тоста. `cashSec` меряется в
+  // секундах СУММАРНОГО дохода: награда не привязана к классу, в отличие от
+  // призовых (правило 8b). Двойной экспоненты тут нет — награда не растит
+  // фанатов, значит сама себя не разгоняет.
+  grant(reward) {
+    if (!reward) return ''
+    if (reward.kind === 'gems') {
+      // Награды НЕ под дневным капом: кап 150/день [F] снят с попапа финиша,
+      // то есть он про гемы за победы. При 17% побед он выбивается за четверть
+      // суток, и общий кап обнулил бы весь этот экран.
+      this.addGems(reward.amount, false)
+      return `+${reward.amount} 💎`
+    }
+    if (reward.kind === 'trophy') { this.addTrophies(reward.amount); return `+${reward.amount} 🏆` }
+    if (reward.kind === 'cashSec') {
+      const cash = this.incomePerSec * reward.amount
+      this.addCash(cash)
+      return '+' + formatMoney(cash)
+    }
+    return ''
+  }
+
+  tasksIn(scope) { return tasksOf(this.rw, scope) }
+  resetInSec(scope) { return resetInSec(scope) }
+  get passProgress() { return passProgress(this.rw) }
+  get passRows() { return passRows(this.rw) }
+  get passLeftSec() { return passLeftMs(Date.now()) / 1000 }
+  get loginInfo() { return loginState(this.rw) }
+  get mailList() { return this.rw.mail }
+
+  // Красная точка на вкладке 5: сколько всего готово к получению. Считаем
+  // здесь, а не в навигации, — иначе счётчик пришлось бы собирать из четырёх
+  // мест в UI, и он бы разошёлся с содержимым вкладки.
+  get rewardsPending() {
+    const rw = this.rw
+    const tasks = tasksOf(rw, 'daily').concat(tasksOf(rw, 'weekly')).filter((t) => t.claimable).length
+    return tasks + passClaimable(rw).length + (loginState(rw).available ? 1 : 0) + mailUnread(rw)
+  }
+
+  claimTaskReward(scope, id) { return claimTask(this.rw, scope, id) }
+  claimAllTaskRewards() { return claimAllTasks(this.rw) }
+
+  claimPassReward(level, premium = false) {
+    return this.grant(claimPass(this.rw, level, premium))
+  }
+
+  claimLoginReward() {
+    return claimLogin(this.rw).map((r) => this.grant(r)).filter(Boolean)
+  }
+
+  claimMailReward(id) { return this.grant(claimMail(this.rw, id)) }
+
+  mail(title, body, reward = null) { pushMail(this.rw, { title, body, reward }) }
 
   // --- Ссылки ------------------------------------------------------------
   // activeClass — свойство с сеттером: смена класса обязана сбросить кэш
@@ -242,12 +312,24 @@ export class GameState {
   // --- Действия ----------------------------------------------------------
   addCash(amount) { this.cash += amount }
 
-  addGems(amount) {
+  // `capped` — под дневным лимитом или нет. Лимит 150/день [F] снят с попапа
+  // финиша (`Gems (47 / 150 per day)`), то есть он ограничивает гемы ЗА ПОБЕДЫ.
+  // Награды вкладки 5 идут мимо него: победный кап выбивается за четверть
+  // суток, и общий лимит превратил бы задачи и пасс в декорацию.
+  addGems(amount, capped = true) {
     if (this.gemsDay !== todayKey()) { this.gemsDay = todayKey(); this.gemsToday = 0 }
+    if (!capped) { this.gems += amount; return amount }
     const allowed = Math.max(0, Math.min(amount, GEMS.dailyCap - this.gemsToday))
     this.gemsToday += allowed
     this.gems += allowed
     return allowed
+  }
+
+  spendGems(amount) {
+    if (this.gems < amount) return false
+    this.gems -= amount
+    this.track('gemSpend', amount)   // [F] дневная задача `Spend Gems 30/50`
+    return true
   }
 
   addTrophies(amount) { this.trophies += amount; this.trophiesEarned += amount }
@@ -294,8 +376,7 @@ export class GameState {
   canDraw(packId, count = 1) { return this.gems >= this.packPrice(packId, count) }
 
   drawPack(packId, count = 1) {
-    if (!this.canDraw(packId, count)) return null
-    this.gems -= this.packPrice(packId, count)
+    if (!this.spendGems(this.packPrice(packId, count))) return null
     return this.roster.draw(packId, count)
   }
 
@@ -327,7 +408,7 @@ export class GameState {
 
   resetCareerSkills() {
     if (!this.canResetSkills()) return 0
-    this.gems -= CAREER.resetGems
+    this.spendGems(CAREER.resetGems)
     const back = resetSkills(this.cls.career)
     this.invalidateCareer()
     return back
@@ -336,6 +417,7 @@ export class GameState {
   activateAdBoost() {
     if (this.cls.adBoostsUsed >= AD_BOOST.maxPerClass) return false
     this.cls.adBoostsUsed++
+    this.track('adWatch')   // [F] дневная задача `Watch an ad 1/1`
     // Буст накапливает время, а не перезапускает таймер [F].
     const from = Math.max(Date.now(), this.adBoostUntil)
     this.adBoostUntil = from + AD_BOOST.durationSec * 1000
@@ -359,7 +441,8 @@ export class GameState {
       cash: this.cash, gems: this.gems, trophies: this.trophies,
       trophiesEarned: this.trophiesEarned,
       activeClass: this.activeClass, gemsDay: this.gemsDay, gemsToday: this.gemsToday,
-      classes: this.classes, roster: this.roster.toJSON(), lastSeen: Date.now(),
+      classes: this.classes, roster: this.roster.toJSON(), rewards: this.rewards,
+      lastSeen: Date.now(),
     })
   }
 }

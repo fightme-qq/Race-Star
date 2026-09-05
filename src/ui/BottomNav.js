@@ -8,7 +8,9 @@ export const TABS = [
   { id: 'gear',    icon: '🎒', title: 'Gear' },
   { id: 'drivers', icon: '🃏', title: 'Drivers' },
   { id: 'leagues', icon: '🏆', title: 'Leagues' },
-  { id: 'rewards', icon: '🎖', title: 'Rewards' },
+  // 🏅, а не 🎖: второй — редкий глиф (U+1F396), его нет в шрифтах части
+  // систем, и вкладка рисовалась пустым кружком. Поймано `npm run shot`.
+  { id: 'rewards', icon: '🏅', title: 'Rewards' },
   { id: 'shop',    icon: '🛒', title: 'Shop' },
 ]
 
@@ -30,13 +32,17 @@ export class BottomNav extends Phaser.GameObjects.Container {
       const glow = scene.add.circle(cx, y + 30, 23, PAL.panel, 1).setVisible(i === 0)
       const icon = scene.add.text(cx, y + 30, tab.icon, { fontFamily: FONT, fontSize: '24px' }).setOrigin(0.5)
       icon.setAlpha(i === 0 ? 1 : 0.5)
-      if (DOTS[i]) scene.add.circle(cx + 17, y + 14, 5, PAL.red)
+      const dot = scene.add.circle(cx + 17, y + 14, 5, PAL.red).setVisible(DOTS[i])
       const zone = scene.add.zone(cx, y + 34, width / TABS.length, 60).setInteractive()
       zone.on('pointerdown', () => onSelect(i, tab))
-      return { glow, icon, zone }
+      return { glow, icon, zone, dot }
     })
     scene.add.existing(this)
   }
+
+  // Точка на вкладке наград не декоративная: она гаснет, когда забирать
+  // нечего. Остальные остаются как на кадре [F] — ими пока нечем управлять.
+  setDot(index, on) { this.items[index]?.dot.setVisible(on) }
 
   setActive(index) {
     this.active = index

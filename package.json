@@ -16,7 +16,8 @@
     "smoke": "node tools/smoke.mjs",
     "shot": "node tools/shot.mjs",
     "diff": "node tools/refdiff.mjs",
-    "ref:pull": "node tools/refpull.mjs"
+    "ref:pull": "node tools/refpull.mjs",
+    "sim:rewards": "node tools/sim/rewards.js"
   },
   "dependencies": {
     "phaser": "^3.87.0"

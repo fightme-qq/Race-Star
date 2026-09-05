@@ -207,11 +207,71 @@ await step('автосостав', async () => {
   })
 })
 
+// 7a. Награды: вкладка 5 -> забрать задачу -> токены уходят в пасс -> забрать
+// уровень пасса. Проверяется вся цепочка валюты, а не открытие окна: задача
+// даёт 🪙, 🪙 двигают шкалу, шкала отдаёт награду.
+await step('вкладка наград', async () => {
+  await page.evaluate(() => {
+    const main = window.__game.scene.getScene('Main')
+    main.modal?.close()
+    // Ждать сотню заездов ради дневной задачи в тесте незачем.
+    main.state.track('raceFinish', 200)
+    main.state.track('raceWin', 20)
+  })
+  await tapObj('nav.items.4.zone')
+  const opened = await page.evaluate(() =>
+    !!window.__game.scene.getScene('Main').modal?.view?.groups)
+  // Две задачи, а не одна: уровень 1 стоит 12 🪙, а задача даёт 10 —
+  // с одной шкала не сдвинулась бы и проверка «токены двигают пасс» молчала.
+  await tapObj('modal.view.groups.0.items.2.btn')      // Finish races -> Claim
+  await tapObj('modal.view.groups.0.items.3.btn')      // Win races -> Claim
+  const afterTask = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { tokens: s.rw.pass.tokens, level: s.passProgress.level }
+  })
+  await tapObj('modal.tabs.1')                          // вкладка PASS
+  const gemsBefore = await page.evaluate(() => window.__game.scene.getScene('Main').state.gems)
+  await tapObj('modal.view.rows.0.free')                // забрать уровень 1
+  return page.evaluate((b) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const ok = b.opened && b.afterTask.tokens > 0 && b.afterTask.level >= 1
+      && s.rw.pass.claimedFree.includes(1)
+    main.modal.close()
+    return { ok, tokens: b.afterTask.tokens, level: b.afterTask.level, gems: s.gems, was: b }
+  }, { opened, afterTask, gemsBefore })
+})
+
+// 7b. Ежедневный вход выдаёт награду ровно один раз в сутки.
+await step('daily reward', async () => {
+  await tapObj('nav.items.4.zone')
+  await tapObj('modal.tabs.2')
+  const before = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { gems: s.gems, total: s.loginInfo.total, available: s.loginInfo.available }
+  })
+  await tapObj('modal.view.claimBtn')
+  const after = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { gems: s.gems, total: s.loginInfo.total, available: s.loginInfo.available }
+  })
+  await tapObj('modal.view.claimBtn')      // второй тап того же дня — не должен дать ничего
+  return page.evaluate((ctx) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const ok = ctx.before.available && !ctx.after.available
+      && ctx.after.total === ctx.before.total + 1
+      && s.loginInfo.total === ctx.after.total
+    main.modal.close()
+    return { ok, total: s.loginInfo.total, gems: s.gems, was: ctx }
+  }, { before, after })
+})
+
 // 8. Закрытие: сейв переживает перезагрузку страницы.
 await step('сейв и закрытие', async () => {
   await page.evaluate(() => {
     const main = window.__game.scene.getScene('Main')
-    main.modal.close()
+    main.modal?.close()
     main.state.save()
   })
   const before = await page.evaluate(() => {

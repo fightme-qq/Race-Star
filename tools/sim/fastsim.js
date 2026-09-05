@@ -4,7 +4,7 @@ import { GameState } from '../../src/systems/GameState.js'
 import { applyRaceResult } from '../../src/systems/RaceRewards.js'
 import { RACE, CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 import { fastRace } from './fastrace.js'
-import { driverBot, careerBot } from './policies.js'
+import { driverBot, careerBot, rewardsBot } from './policies.js'
 import { stayFirst } from './classplan.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
@@ -47,6 +47,7 @@ export function fastSim({
   let purchases = 0
   let draws = 0
   let skills = 0
+  let claims = 0
   let nextSample = 0
   // Когда и во что игрок переехал: без этого списка непонятно, чем именно
   // отличаются стратегии, — итоговая сумма показывает только «лучше/хуже».
@@ -78,7 +79,13 @@ export function fastSim({
         idx: state.clsDef.index, price: CLASS_UNLOCK_PRICES[state.clsDef.index],
       })
     }
-    if (race % DRIVER_EVERY === 0) { draws += driverBot(state); skills += career(state) }
+    // Награды — СТРОГО до гачи: собранные гемы должны попасть в тот же заход,
+    // иначе бот копит их лишний цикл и приток выглядит меньше, чем он есть.
+    if (race % DRIVER_EVERY === 0) {
+      claims += rewardsBot(state)
+      draws += driverBot(state)
+      skills += career(state)
+    }
 
     for (const price of CLASS_UNLOCK_PRICES) {
       if (price && !milestones[price] && earned >= price) milestones[price] = sec
@@ -97,7 +104,7 @@ export function fastSim({
   }
 
   return {
-    hours, races: totalRaces, purchases, draws, skills, earned,
+    hours, races: totalRaces, purchases, draws, skills, claims, earned,
     places, samples, milestones, switches, state,
   }
 }

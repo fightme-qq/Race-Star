@@ -1,5 +1,6 @@
 import { ECONOMY, SEASON, GEMS, LEAGUES } from '../config/balance.js'
 import { CAREER } from '../config/career.js'
+import { MAIL } from '../config/rewards.js'
 import { recordRivals, archiveSeason } from './SeasonSystem.js'
 
 // Начисление за финиш — чистая функция от состояния и места.
@@ -47,6 +48,12 @@ export function applyRaceResult(state, position, order = null) {
   const careerXp = CAREER.xpPerRace * CAREER.xpPlace[idx]
   const careerLevels = state.gainCareerXp(careerXp)
 
+  // Счётчики задач вкладки 5 [F]: `finish race 54/100`, `win race 4/5`.
+  // Считает их тот же код, что раздаёт награды за финиш (правило 7), — иначе
+  // балансный стенд играл бы в игру без задач, а игрок с задачами.
+  state.track?.('raceFinish')
+  if (position === 1) state.track?.('raceWin')
+
   let gems = 0
   if (position === 1) {
     gems = state.addGems(GEMS.perWin)
@@ -73,6 +80,17 @@ export function applyRaceResult(state, position, order = null) {
         state.relativePowerOf(state.activeClass))
     }
     if (promoted) state.cls.league++
+    // Почта [E] — доставка того, что случилось, пока игрок смотрел в другую
+    // вкладку. Письмо пишем ПОСЛЕ повышения: в нём стоит лига, куда игрок
+    // попал, а в истории сезонов — та, где отъездил.
+    state.track?.('seasonFinish')
+    state.mail?.(
+      promoted ? 'Promoted!' : `Season ${state.cls.season} complete`,
+      promoted
+        ? `${state.teamName} moves up to ${LEAGUES[state.cls.league].name}.`
+        : `${state.teamName} finished the season in ${LEAGUES[state.cls.league].name}.`,
+      promoted ? MAIL.promoReward : MAIL.seasonReward,
+    )
     state.cls.season++
     state.cls.seasonRaces = 0
     state.cls.seasonScore = 0

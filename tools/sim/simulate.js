@@ -3,7 +3,7 @@ import { clock } from './headless.js'
 import { GameState } from '../../src/systems/GameState.js'
 import { RaceController } from '../../src/systems/RaceController.js'
 import { CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
-import { ratePerSec, expectedPlace, driverBot, careerBot } from './policies.js'
+import { ratePerSec, expectedPlace, driverBot, careerBot, rewardsBot } from './policies.js'
 
 const SAMPLE_EVERY_SEC = 300
 // Тот же период, что DRIVER_EVERY=10 гонок в fastsim (10 x 60 с). Без этого
@@ -44,7 +44,11 @@ export function simulate({ hours = 24, dt = 1, policy, seed = 1 }) {
       if (!milestones[price] && earned >= price) milestones[price] = tick * dt
     }
     purchases += policy(state)
-    if ((tick * dt) % DRIVER_EVERY_SEC === 0) { driverBot(state); careerBot(state) }
+    // Награды собираем и здесь: без них полная модель играет в другую игру,
+    // чем быстрая, и сверка на 2ч перестаёт что-либо значить.
+    if ((tick * dt) % DRIVER_EVERY_SEC === 0) {
+      rewardsBot(state); driverBot(state); careerBot(state)
+    }
     prevCash = state.cash
 
     if ((tick * dt) % SAMPLE_EVERY_SEC === 0) {
