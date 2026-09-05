@@ -20,6 +20,11 @@ export const SCREENS = {
   // `races` прокатывает сезон заранее — на пустой таблице все нули, и ни
   // сортировка, ни подсветка строки игрока не проверяются.
   leagues: { open: 'openLeagues', cash: 1e6, races: 14 },
+  // Кадра оригинала нет и здесь: это состояние «открыто три класса», в котором
+  // видна строка параллельного дохода. Отдельный экран, а не правка `main`:
+  // `main` сверяется с main-early.png, где класс ровно один.
+  parallel: { open: null, cash: 30e6, unlock: 3, fans: 4e6 },
+  parallelClasses: { open: 'openClasses', cash: 30e6, unlock: 3, fans: 4e6 },
 }
 
 export async function launch() {
@@ -49,6 +54,18 @@ export async function goto(page, screen) {
     main.state.gainCareerXp(9000)
     main.state.gems = 500
     if (c.cash) main.state.addCash(c.cash)
+    // Открытые классы копят фанатов и платят, даже когда игрок в них не едет
+    // (ECONOMY.idleClassShare) — без фанатов строка параллельного дохода
+    // показала бы пол $1/с и наложения бы не поймала.
+    if (c.unlock) {
+      const ids = Object.keys(main.state.classes).slice(0, c.unlock)
+      for (const id of ids) {
+        main.state.unlockClass(id)
+        main.state.classes[id].fans = c.fans || 0
+      }
+      main.state.invalidateIdle()
+      main.state.activeClass = ids[c.unlock - 1]
+    }
     // Прокатываем заезды тем же кодом, что игра: место берём из настоящей
     // симуляции, места соперников — из неё же, иначе таблица покажет расклад,
     // которого в игре не бывает.

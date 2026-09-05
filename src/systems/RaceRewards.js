@@ -20,8 +20,13 @@ export function applyRaceResult(state, position, order = null) {
   // только за победу. Они не масштабируются ничем и намеренно: в оригинале это
   // ранняя игра (Parking Lv.8 = $120 за гонку при пассиве $60), к середине их
   // обгоняет доход от фанатов.
+  // Приз считается от дохода АКТИВНОГО класса, а не от суммарного: с шагом
+  // «параллельный доход» открытые классы капают фоном, и общий доход у игрока
+  // на шестом классе почти весь чужой. Взять его сюда значило бы раздавать за
+  // заезд в свежем классе призы по накопленному пятому — и заодно вернуть
+  // двойную экспоненту (приз растит фанатов, фанаты растят приз).
   const seconds = ECONOMY.prizeSeconds * ECONOMY.placePrize[idx]
-  const prize = state.incomePerSec * seconds
+  const prize = state.activeIncomePerSec * seconds
     * Math.pow(ECONOMY.leaguePrizeMult, state.cls.league)
     * Math.max(0, 1 + fx.prizePct / 100)
   const flat = state.agg.cashPerRace + (position === 1 ? state.agg.cashPerWin : 0)

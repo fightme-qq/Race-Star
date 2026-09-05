@@ -1,4 +1,5 @@
 import { RACE_CLASSES } from '../../src/config/classes.js'
+import { ECONOMY } from '../../src/config/balance.js'
 import { aggregateClass } from '../../src/systems/UpgradeSystem.js'
 
 // Целевая кривая прогрессии [X] — наш дизайн, в оригинале не наблюдалась.
@@ -11,20 +12,37 @@ import { aggregateClass } from '../../src/systems/UpgradeSystem.js'
 //
 // На самом деле у нового класса приток фанатов идёт множителем c
 // (ECONOMY.classFanMult), поэтому шаг по времени r связан с ценой тождеством
-// 25 = c * r^2. Выбрано r = 4, отсюда c = 1.5625 (вывод и обе границы на r —
-// в balance.js) и лесенка ниже: хвост закреплён на 625-м часу удержанием,
-// остальное делится на четыре.
+// 25 = c * r^2, то есть r = 5 / sqrt(c).
+//
+// ТОЖДЕСТВО ПЕРЕЖИЛО ПАРАЛЛЕЛЬНЫЙ ДОХОД, хотя выводилось для последовательной
+// модели, и это стоило проверить, а не предположить. Раньше: за фазу k деньги
+// ~ rate_k * T_k^2 / 2 (фанаты копятся линейно). Теперь к ним добавляются
+// замороженные классы: (Σ_{j<k} rate_j T_j) * T_k. Сумма геометрическая, её
+// хвост — rate_{k-1} T_{k-1} = R T_0 (cr)^{k-1}, отсюда второе слагаемое
+// ~ (c r^2)^k / (c r). ОБА слагаемых растут как (c r^2)^k, значит цена x25 [F]
+// по-прежнему требует 25 = c r^2 — параллельный доход меняет константу, а не
+// показатель. (Заметно другое: замороженный вклад больше квадратичного в ~2r
+// раз, то есть к концу игры игрок живёт в основном на покинутых классах.)
+//
+// Поэтому STEP не константа: он ВЫЧИСЛЯЕТСЯ из classFanMult. Так перебор,
+// которому вернули c в SPACE, двигает вехи вместе с ним и не может выиграть
+// счёт, просто сделав лесенку удобной.
 const LAST_SEC = 625 * 3600   // [X] последний класс к 26-му дню — якорь удержания
-const STEP = 4                // [X] каждый класс вчетверо дольше предыдущего
 
 const PRICES = [40e3, 1e6, 25e6, 625e6, 15.625e9]   // [F] шаг x25
 const label = (sec) => sec >= 86400 ? (sec / 86400).toFixed(1) + 'д'
   : (sec / 3600).toFixed(1) + 'ч'
 
-export const MILESTONE_TARGETS = PRICES.map((price, i) => {
-  const sec = LAST_SEC / Math.pow(STEP, PRICES.length - 1 - i)
-  return { price, sec, label: label(sec) }
-})
+// Список пересобирается на каждое обращение: tune.js правит ECONOMY на месте
+// перед прогоном, а замороженный на импорте массив молча остался бы от первой
+// точки перебора.
+export const milestoneTargets = () => {
+  const step = 5 / Math.sqrt(ECONOMY.classFanMult)
+  return PRICES.map((price, i) => {
+    const sec = LAST_SEC / Math.pow(step, PRICES.length - 1 - i)
+    return { price, sec, label: label(sec) }
+  })
+}
 
 // Веха засчитывается по ФАКТУ открытия класса, а не по «накопил на цену».
 // Разница не косметическая: цену копят один раз, а платят её деньгами, которые
@@ -75,7 +93,7 @@ function acrossClasses(state) {
 
 export function scoreRun(run) {
   let score = 0
-  for (const t of MILESTONE_TARGETS) {
+  for (const t of milestoneTargets()) {
     // Не дошёл — штрафуем как за двенадцатикратное опоздание, чтобы «не открыл
     // вовсе» стоило дороже любого промаха по времени.
     score += logPenalty(unlockSec(run, t.price) || t.sec * 12, t.sec)

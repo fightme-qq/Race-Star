@@ -3,7 +3,7 @@ import { simulate } from './simulate.js'
 import { fastSim } from './fastsim.js'
 import { POLICIES } from './policies.js'
 import { CLASS_PLANS, switchRoi } from './classplan.js'
-import { MILESTONE_TARGETS, unlockSec } from './targets.js'
+import { milestoneTargets, unlockSec } from './targets.js'
 import { CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 
 const HOURS = Number(process.argv[2] || 700)
@@ -60,7 +60,7 @@ for (const [name, policy] of Object.entries(POLICIES)) {
   // Две колонки намеренно: «накопил» — когда денег стало достаточно, «открыл» —
   // когда игрок действительно перешёл. Расхождение и есть цена перехода.
   console.log('  разблокировка класса:      цель    накопил     открыл')
-  for (const t of MILESTONE_TARGETS) {
+  for (const t of milestoneTargets()) {
     console.log(`    ${pad(money(t.price), 9)}  ${pad(t.label, 8)}  ` +
       `${pad(dur(r.milestones[t.price]), 9)}  ${pad(dur(unlockSec(r, t.price)), 9)}`)
   }

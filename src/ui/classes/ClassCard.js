@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../../config/palette.js'
 import { formatMoney, formatNum } from '../../utils/format.js'
+import { ECONOMY } from '../../config/balance.js'
 import { label, Button } from '../widgets.js'
 
 export const CLASS_CARD_H = 262
@@ -36,6 +37,10 @@ export class ClassCard extends Phaser.GameObjects.Container {
     })
 
     this.capTeam = label(scene, 18, 78, 'Team Name', { size: 11, color: CSS.muted })
+    // [X] Доход класса — на свободном правом конце строки `Team Name`. Кадр
+    // здесь пуст, но без этого числа параллельный доход виден только суммой в
+    // шапке модалки, а решение «в каком классе сидеть» принимается по нему.
+    this.incomeText = label(scene, w - 16, 76, '', { size: 12, bold: true, align: 'right', color: CSS.greenDim })
     this.teamText = label(scene, 30, 100, '', { size: 14 })
     this.pencil = new Button(scene, w - 38, 110, 36, 30, '✎', { fill: PAL.panel, color: CSS.dim, size: 17 })
     this.pencil.on('press', () => onRename(def.id))
@@ -54,7 +59,7 @@ export class ClassCard extends Phaser.GameObjects.Container {
     this.details = new Button(scene, w - 74, 227, 112, 38, 'Details', { size: 14 })
     this.details.on('press', () => onDetails(def.id))
 
-    this.extra = [this.capTeam, this.teamText, this.pencil, this.capLeague,
+    this.extra = [this.capTeam, this.incomeText, this.teamText, this.pencil, this.capLeague,
       this.leagueText, this.advance, this.capScore, this.details,
       ...this.cols.flatMap((c) => [c.cap, c.val])]
 
@@ -102,6 +107,11 @@ export class ClassCard extends Phaser.GameObjects.Container {
     const dist = s.winChanceOf(this.def.id)
     this.fans.setText('👥 ' + formatNum(cs.fans)).setColor(CSS.accent)
     this.luck.setText('🍀 ' + Math.round(dist[0] * 100) + '%')
+    // Неактивный класс платит долю ECONOMY.idleClassShare — показываем ровно
+    // то, что он приносит игроку сейчас, а не то, что приносил бы в заезде.
+    const income = s.classIncome(this.def.id) * (active ? 1 : ECONOMY.idleClassShare)
+    this.incomeText.setText(formatMoney(income) + ' /s' + (active ? '' : ' idle'))
+      .setColor(active ? CSS.greenDim : CSS.muted)
     this.teamText.setText(cs.teamName)
     this.leagueText.setText(s.leagueOf(this.def.id).name.toUpperCase())
     this.cols[0].val.setText(String(cs.season).padStart(3, '0'))

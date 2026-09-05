@@ -64,7 +64,7 @@ export class GameState {
   // activeClass — свойство с сеттером: смена класса обязана сбросить кэш
   // свода скиллов, дерево у каждого класса своё.
   get activeClass() { return this._activeClass }
-  set activeClass(id) { this._activeClass = id; this._fx = null }
+  set activeClass(id) { this._activeClass = id; this._fx = null; this._idle = null }
 
   get cls() { return this.classes[this.activeClass] }
   get clsDef() { return CLASS_BY_ID[this.activeClass] }
@@ -133,7 +133,10 @@ export class GameState {
   }
   get careerDriver() { return careerStats(this.cls.career, this.careerFx) }
   get careerPoints() { return pointsFree(this.cls.career) }
-  invalidateCareer() { this._fx = null }
+  // Дерево правится только у активного класса, но `_idle` считает ЧУЖИЕ своды:
+  // сбрасываем и его, иначе после возврата в покинутый класс сумма осталась бы
+  // от старой раскладки.
+  invalidateCareer() { this._fx = null; this._idle = null }
 
   // --- Производные статы -------------------------------------------------
   // База — сумма статов пятёрки состава ПЛЮС карьерный драйвер (он выходит на
@@ -190,14 +193,48 @@ export class GameState {
   // сколько раз накопленные фанаты подняли доход над стартовым полом.
   get fanMultiplier() { return Math.max(1, this.fanIncome / ECONOMY.baseIncomePerSec) }
 
-  get incomePerSec() {
-    const boost = this.adBoostActive ? AD_BOOST.multiplier : 1
-    // Скиллы дохода (Sponsorships, Merchandising, Team Principal) — множитель,
-    // а не слагаемое: иначе к середине игры они не видны. Узел оригинала
-    // «−30% Income in Monster Truck» [F] работает так же.
-    const career = Math.max(0.05, 1 + this.careerFx.incomePct / 100)
-    return Math.max(ECONOMY.baseIncomePerSec, this.fanIncome) * boost * career
+  // Доход ОДНОГО класса, без буста. Скиллы дохода (Sponsorships, Merchandising,
+  // Team Principal) — множитель, а не слагаемое: иначе к середине игры они не
+  // видны. Узел оригинала «−30% Income in Monster Truck» [F] работает так же,
+  // и он же объясняет, почему множитель берётся из дерева ЭТОГО класса.
+  classIncome(classId) {
+    const cls = this.classes[classId]
+    if (!cls.unlocked) return 0
+    const fx = classId === this.activeClass ? this.careerFx : careerEffects(cls.career)
+    const career = Math.max(0.05, 1 + fx.incomePct / 100)
+    return Math.max(ECONOMY.baseIncomePerSec, cls.fans / ECONOMY.fansPerDollar) * career
   }
+
+  get boostMult() { return this.adBoostActive ? AD_BOOST.multiplier : 1 }
+
+  // Доход АКТИВНОГО класса — то самое число из шапки [F] и база призовых.
+  // Приз меряется в секундах дохода того класса, в котором едет заезд: иначе
+  // свежий шестой класс раздавал бы призы по накопленному пятому.
+  get activeIncomePerSec() { return this.classIncome(this.activeClass) * this.boostMult }
+
+  // ПАРАЛЛЕЛЬНЫЙ ДОХОД. Открытые классы продолжают приносить свои фанатские
+  // деньги, пока игрок катается в другом (доля — ECONOMY.idleClassShare).
+  // Кэш обязателен: сумма дёргается из incomePerSec, то есть каждый кадр, а
+  // careerEffects чужого класса не мемоизируется (кэш `_fx` только для
+  // активного). Фанаты неактивного класса не меняются — он не едет, — поэтому
+  // сумма живёт до смены класса, разблокировки или правки дерева.
+  get idleIncomePerSec() {
+    if (this._idle === null || this._idle === undefined) {
+      let sum = 0
+      for (const c of RACE_CLASSES) {
+        if (c.id === this.activeClass) continue
+        sum += this.classIncome(c.id)
+      }
+      this._idle = sum * ECONOMY.idleClassShare
+    }
+    return this._idle * this.boostMult
+  }
+
+  invalidateIdle() { this._idle = null }
+
+  get unlockedCount() { return RACE_CLASSES.filter((c) => this.classes[c.id].unlocked).length }
+
+  get incomePerSec() { return this.activeIncomePerSec + this.idleIncomePerSec }
 
   get adBoostActive() { return this.adBoostUntil > Date.now() }
   get adBoostLeftSec() { return Math.max(0, (this.adBoostUntil - Date.now()) / 1000) }
@@ -244,6 +281,7 @@ export class GameState {
     this.cash -= price
     this.classes[classId].unlocked = true
     this.roster.ensureStarters(classId, CLASS_BY_ID[classId].index)
+    this.invalidateIdle()   // открытый класс начинает капать сразу, ещё до перехода
     return true
   }
 

@@ -30,6 +30,13 @@ export class TopBar extends Phaser.GameObjects.Container {
 
     label(scene, width / 2, 14, 'Income /s', { size: 12, color: CSS.text, align: 'center' })
     this.incomeText = label(scene, width / 2, 30, '', { size: 21, bold: true, align: 'center', color: CSS.greenDim })
+    // [X] Строки НЕТ на кадрах, и она добавлена сознательно. В шапке стоит
+    // доход АКТИВНОГО класса [F]: свежий класс обязан показывать $1/с при любом
+    // прогрессе игрока (правило 8a). С шагом «параллельный доход» кошелёк при
+    // этом растёт быстрее — на покинутые классы, — и без этой строки главный
+    // множитель поздней игры был бы для игрока невидим. Ровно та же причина, по
+    // которой на шаге 3 заводилась вкладка лиг.
+    this.idleText = label(scene, width / 2, 52, '', { size: 10, align: 'center', color: CSS.muted })
 
     this.boostBtn = new Button(scene, width / 2, 84, 148, 34, 'Activate 2x', { size: 13 })
     this.boostBtn.on('press', onBoost)
@@ -47,7 +54,7 @@ export class TopBar extends Phaser.GameObjects.Container {
     this.classIcon = label(scene, width - 128, 74, '', { size: 17 })
     this.classDot = scene.add.circle(width - 16, 66, 5, PAL.red)
 
-    this.add([this.cashText, this.gemsText, this.incomeText, this.boostBtn,
+    this.add([this.cashText, this.gemsText, this.incomeText, this.idleText, this.boostBtn,
       this.classBtn, this.careerBtn, this.careerDot, this.careerLvl,
       this.classIcon, this.classDot])
     scene.add.existing(this)
@@ -57,8 +64,13 @@ export class TopBar extends Phaser.GameObjects.Container {
     const s = this.state
     this.cashText.setText(formatMoney(s.cash).replace('$', ''))
     this.gemsText.setText(formatNum(s.gems))
-    this.incomeText.setText(formatMoney(s.incomePerSec))
+    this.incomeText.setText(formatMoney(s.activeIncomePerSec))
     this.incomeText.setColor(s.adBoostActive ? CSS.accent : CSS.greenDim)
+
+    // Текст короткий не для красоты: длинная строка правым концом заезжала под
+    // кнопку CLASSES (поймано `npm run shot parallel`, в консоли чисто).
+    const idle = s.idleIncomePerSec
+    this.idleText.setText(idle > 0 ? `+ ${formatMoney(idle)} /s idle` : '')
 
     const used = s.cls.adBoostsUsed
     if (s.adBoostActive) {

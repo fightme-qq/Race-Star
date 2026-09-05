@@ -41,15 +41,19 @@ const COMBAT_SLOTS = [
 // денег $50 при pg 2.29), и это, судя по всему, и есть причина, по которой
 // множитель фанатов три этапа подряд не доходил до цели: слот стоил слишком
 // дёшево, чтобы быть поздней целью.
-// Наклоны Parking и Grandstands подобраны перебором (3.177 и 2.986). Они круче
+// Наклоны Parking и Grandstands подобраны перебором (2.499 и 2.227). Они круче
 // наблюдённых денежных, и смысл у этого прямой: якорь стоит на Lv.8 и Lv.5, а
 // крутой наклон делает уровни ДО якоря почти бесплатными. Ранняя игра тогда
-// разгоняется на Parking (Lv.0 стоит $0.46), а после якоря ветка становится
-// поздней целью — обе фазы из кадров сохраняются.
+// разгоняется на Parking, а после якоря ветка становится поздней целью — обе
+// фазы из кадров сохраняются.
+// Оба числа пересобраны на шаге «параллельный доход», и оба обязаны меняться
+// ВМЕСТЕ: замер по четырём смесям показал, что шестой класс открывается только
+// при обоих пологих (счёт 1.00), а любая смесь со старым наклоном возвращает
+// прежний тупик — класс 4 и «не дошёл» (3.57 … 4.21).
 const ECONOMY_SLOTS = [
   { key: 'e0', name: 'Ticket Marketing',     tag: 'income', flat: 6,  gain: 3,  unit: '$', effect: 'cashPerRace', anchor: { level: 0, price: 10 },   pg: 1.431 },
-  { key: 'e1', name: 'Parking',              tag: 'income', flat: 0,  gain: 15, unit: '$', effect: 'cashPerRace', anchor: { level: 8, price: 4860 }, pg: 3.177 },
-  { key: 'e2', name: 'Grandstands',          tag: 'fans',   flat: 10, gain: 5,  unit: '',  effect: 'fansPerRace', anchor: { level: 5, price: 9050 }, pg: 2.986 },
+  { key: 'e1', name: 'Parking',              tag: 'income', flat: 0,  gain: 15, unit: '$', effect: 'cashPerRace', anchor: { level: 8, price: 4860 }, pg: 2.4989 },
+  { key: 'e2', name: 'Grandstands',          tag: 'fans',   flat: 10, gain: 5,  unit: '',  effect: 'fansPerRace', anchor: { level: 5, price: 9050 }, pg: 2.2267 },
   { key: 'e3', name: 'Victory Celebrations', tag: 'income', flat: 0,  gain: 9,  unit: '$', effect: 'cashPerWin',  anchor: { level: 0, price: 50 },   pg: 1.646 },
 ]
 

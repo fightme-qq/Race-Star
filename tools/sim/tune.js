@@ -1,8 +1,8 @@
 import './headless.js'
 import { fastSim } from './fastsim.js'
 import { cheapestFirst, resetPolicyCache } from './policies.js'
-import { switchRoi } from './classplan.js'
-import { MILESTONE_TARGETS, unlockSec, scoreRun } from './targets.js'
+import { switchRoi, switchAsap } from './classplan.js'
+import { milestoneTargets, unlockSec, scoreRun } from './targets.js'
 import { ECONOMY, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { RACE_CLASSES } from '../../src/config/classes.js'
 import { SeededRandom } from '../../src/utils/rng.js'
@@ -18,6 +18,8 @@ export function applyTune(p) {
   resetPolicyCache()
   ECONOMY.leaguePrizeMult = p.leaguePrizeMult
   ECONOMY.prizeSeconds = p.prizeSeconds
+  ECONOMY.classFanMult = p.classFanMult
+  ECONOMY.idleClassShare = p.idleClassShare
   SEASON.promoteRatio = p.promoteRatio
   // Первая ступень 190 — ROOKIE снята с кадров [F], дальше геометрия [X].
   LEAGUES.forEach((l, i) => { l.power = Math.round(190 * Math.pow(p.leagueStep, i)) })
@@ -31,6 +33,16 @@ export function applyTune(p) {
   }
 }
 
+// Насколько просчитанный план перехода обязан обгонять наивный «переходи, как
+// только хватило». Это НЕ метрика игрока, а требование к дизайну, и до шага
+// «параллельный доход» его в счёте не было — из-за чего шаг 2 полгода прожил
+// на точке, где cheapestFirst и roiGreedy давали одно и то же.
+// Замер прямо показал, зачем это здесь: при idleClassShare = 1 (полный
+// параллельный доход) обе стратегии сходятся в точку — $3.23T против $3.23T, —
+// потому что переход перестаёт что-либо стоить. Счёт по вехам этого не видит
+// вовсе: вехи-то как раз выполняются идеально.
+const DECISION_GAP = 1.25
+
 export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
   applyTune(p)
   let score = 0
@@ -41,6 +53,9 @@ export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
     // «за сколько накопит», а не «за сколько дойдёт».
     last = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchRoi })
     score += scoreRun(last)
+    const naive = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchAsap })
+    const gap = last.earned / Math.max(1, naive.earned)
+    if (gap < DECISION_GAP) score += 0.8 * Math.pow(Math.log(gap / DECISION_GAP), 2)
   }
   return { score: score / seeds.length, run: last }
 }
@@ -64,13 +79,20 @@ const SPACE = {
   // к нижней границе 1.05. Счёт не возражал: цель по лиге выполняется сама
   // собой, потому что лестницу проходят не по желанию.
   leaguePrizeMult: [1.45, 3.00],
-  // classFanMult в SPACE по-прежнему НЕТ, но причина теперь другая. Раньше —
-  // «прогон идёт одним классом, координата не чувствуется». Теперь стенд
-  // переходит между классами и координату чувствует прекрасно, зато она
-  // ПЕРЕСТАЛА БЫТЬ СВОБОДНОЙ: цены разблокировки идут шагом x25 [F], а лесенка
-  // вех строится как r = 5 / sqrt(c) (вывод — в balance.js и targets.js).
-  // Подбирать c против вех, выведенных из c, значит подгонять число под самого
-  // себя — счёт будет нулевым при любом значении.
+  // classFanMult ВЕРНУЛСЯ в перебор на шаге «параллельный доход». Прошлый
+  // довод против («подбирать c против вех, выведенных из c, значит подгонять
+  // число под самого себя») снят тем, что вехи теперь и правда выводятся из c
+  // на каждом прогоне — milestoneTargets() пересчитывает лесенку по r = 5/√c.
+  // Самоподгонка при этом невозможна: штраф «не открыл класс вовсе» (ln(12)^2)
+  // не самосогласован, маленькое c его не обходит.
+  // Нижняя граница — прежнее значение 1.5625: замер показал, что при нём
+  // шестой класс не берётся ни при какой доле пассивного дохода.
+  classFanMult:  [1.5625, 3.20],
+  // Доля дохода покинутого класса. Обе границы содержательны и обе поставлены
+  // замером: при 0 это прежняя, последовательная игра, где шестой класс
+  // недостижим; при 1 переход бесплатен и решение «когда» вырождается
+  // (switchRoi и switchAsap дают одинаковые $3.23T). Ответ где-то между.
+  idleClassShare: [0.15, 1.00],
   leagueStep:    [1.20, 1.90],
   promoteRatio:  [0.6, 2.6],   // счёт сезона для повышения = races * ratio
   prizeSeconds:  [4, 300],     // приз за 1-е место в секундах дохода
@@ -107,7 +129,18 @@ const SEED_POINTS = [
   // факту открытия класса, а не по накоплению на его цену.
   // { parkPg: 4.2885, fanPg: 2.4447, leaguePrizeMult: 1.9573,
   //   leagueStep: 1.3480, promoteRatio: 1.9242, prizeSeconds: 4.7896 },
+  // Шаг «параллельный доход»: точка с ручного замера долей и множителя — при
+  // ней шестой класс и берётся, и остаётся решением ($755B у просчитанного
+  // против $576B у наивного). Остальные координаты — от действующего конфига.
+  { parkPg: 2.4989, fanPg: 2.5443, leaguePrizeMult: 1.4500,
+    leagueStep: 1.4898, promoteRatio: 1.9631, prizeSeconds: 5.6948,
+    classFanMult: 2.0, idleClassShare: 0.5 },
 ]
+
+// Точки прежних шагов не знают двух новых координат, а applyTune пишет их в
+// ECONOMY как есть — undefined превратил бы весь прогон в NaN молча.
+const DEFAULTS = { classFanMult: 1.5625, idleClassShare: 0.5 }
+const full = (p) => ({ ...DEFAULTS, ...p })
 
 const sampleLog = (rng, [lo, hi]) => Math.exp(rng.float(Math.log(lo), Math.log(hi)))
 
@@ -116,7 +149,8 @@ export function search({ iters = 200, refine = 3, hours = 700 } = {}) {
   const rng = new SeededRandom(20260902)
   let best = null
 
-  for (const p of SEED_POINTS) {
+  for (const seed of SEED_POINTS) {
+    const p = full(seed)
     const { score } = evaluate(p, { hours, seeds: [1] })
     if (!best || score < best.score) best = { score, p }
   }
@@ -152,7 +186,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const { run } = evaluate(best.p, { hours: 700, seeds: [1] })
   console.log('\n  веха     цель    открыт')
-  for (const t of MILESTONE_TARGETS) {
+  for (const t of milestoneTargets()) {
     const a = unlockSec(run, t.price)
     console.log(`  ${String(t.price).padStart(11)}  ${t.label.padStart(6)}  ` +
       (a ? (a / 3600).toFixed(1) + 'ч' : 'не дошёл'))
