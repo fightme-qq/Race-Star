@@ -3,6 +3,7 @@ import { simulate } from './simulate.js'
 import { fastSim } from './fastsim.js'
 import { POLICIES } from './policies.js'
 import { CLASS_PLANS, switchRoi } from './classplan.js'
+import { withoutShop, withoutGacha } from './sinks.js'
 import { milestoneTargets, unlockSec } from './targets.js'
 import { CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 
@@ -99,6 +100,34 @@ for (const [name, plan] of Object.entries(CLASS_PLANS)) {
     `${pad(r.state.clsDef.index, 5)} | ${pad(r.state.cls.league, 4)} | ` +
     `${pad((100 * r.places[1] / r.races).toFixed(1) + '%', 5)} | ` +
     r.switches.map((s) => dur(s.sec) + '→' + s.to).join(' '))
+}
+
+// 4. Гемовые стоки — приёмка шага 5. Доля гемов из блока выше показывает ИСХОД,
+// но не отвечает на вопрос, ради которого магазин делался: нужны ли обе траты.
+// Отвечает только прогон с выключенным стоком (см. tools/sim/sinks.js).
+console.log(`\n=== гемовые стоки (cheapestFirst, switchRoi) — ${HOURS}ч ===`)
+{
+  const single = (fn) => fn(() => fastSim({
+    hours: HOURS, policy: POLICIES.cheapestFirst, classPlan: switchRoi,
+  }))
+  const mixed = runs.cheapestFirst
+  const rows = [
+    ['обе оси', mixed],
+    ['только гача', single(withoutShop)],
+    ['только магазин', single(withoutGacha)],
+  ]
+  console.log('           сток | заработано | лига | роллов | сделок')
+  for (const [name, r] of rows) {
+    console.log(`  ${pad(name, 13)} | ${pad(money(r.earned), 10)} | ` +
+      `${pad(r.state.cls.league, 4)} | ${pad(r.draws, 6)} | ${pad(r.deals, 6)}`)
+  }
+  const worst = Math.min(...rows.slice(1).map(([, r]) => mixed.earned / Math.max(1, r.earned)))
+  console.log(`  смешанная игра обгоняет худший одиночный сток в ${worst.toFixed(2)} раза` +
+    (worst < 1.10 ? '  <-- сток лишний или вредный' : ''))
+  const last = mixed.samples[mixed.samples.length - 1]
+  console.log(`  курс в конце: пак ${money(last.packPerGem)}/гем, ` +
+    `гача ${last.gachaPerGem === null ? '—' : money(last.gachaPerGem)}/гем ` +
+    `(оценка гачи ЗАНИЖЕНА, см. policies.js — в решениях не используется)`)
 }
 
 console.log('\nцены разблокировки:', CLASS_UNLOCK_PRICES.map(money).join('  '))

@@ -38,7 +38,7 @@ const seasonPoints = (dist) =>
 // раскладом, доезжают до разных лиг. Забыть tilt здесь — значит вернуть ровно
 // ту слепоту, из-за которой защита считалась пустышкой.
 const reachCache = new Map()
-export const resetPolicyCache = () => reachCache.clear()
+export const resetPolicyCache = () => { reachCache.clear(); gacha.perGem = null }
 
 export function reachableLeague(shape) {
   const key = Math.round(shape.power * 4) + ':' + Math.round(shape.tilt * 200)
@@ -231,6 +231,38 @@ export function rewardsBot(state) {
   return claims
 }
 
+// Курс двух гемовых стоков в долларах на гем — ТОЛЬКО ДЛЯ ОТЧЁТА. Решений по
+// нему бот не принимает, и это сознательно.
+//
+// Первая версия шага 5 сравнения не делала вовсе: магазин скупал паки до
+// дневного лимита при любом курсе, а в гачу уходил остаток. Доля гемов из-за
+// этого держалась на 57% и при cashRateMult 1.0, и при 0.85 — то есть штраф
+// SHOP_SHARE в переборе был вне досягаемости его единственной координаты.
+//
+// Порог напрашивался сам собой, и он ОКАЗАЛСЯ НЕВЕРНЫМ. Обе стороны честно
+// приводятся к общему масштабу: пак даёт `rate` секунд дохода за гем, гача —
+// прибавку к `ratePerSec` через тот же горизонт, по которому бот покупает
+// боевые слоты. По этой мерке пак выгоднее ролла в 10-240 раз. Прямой замер
+// (tools/sim/sinks.js) говорит обратное: «только гача» $25.8B против $23.3B у
+// смешанной игры при курсе 1.0.
+// Причина — заход из десяти роллов чаще всего НЕ МЕНЯЕТ состав: он копит pity
+// и дубликаты, которые платят потом, при слиянии. Мгновенная прибавка к доходу
+// этого не видит, и оценка гачи занижена систематически. Та же слепота, что
+// была с Grandstands и Crowd Work.
+// Поэтому баланс двух стоков проверяется прогоном с выключенным стоком, а не
+// порогом внутри бота; оба курса печатаются в отчёте как объяснение доли.
+const HORIZON_SEC = HORIZON_RACES * RACE.durationSec
+const gacha = { perGem: null }
+
+export const resetGachaValue = () => { gacha.perGem = null }
+
+export const gachaPerGem = () => gacha.perGem
+export const packPerGem = (state) => {
+  const row = state.cashPacks.filter((r) => r.left > 0)
+    .sort((a, b) => b.rate - a.rate)[0]
+  return row ? row.rate * ratePerSec(state) : 0
+}
+
 // Вкладка 6 глазами игрока. Порядок внутри не произволен и держит весь смысл
 // шага 5: сперва БЕСПЛАТНОЕ (гемы за день и за рекламу), потом ДНЕВНЫЕ
 // ЛИМИТИРОВАННЫЕ паки «деньги за гемы», и только потом остаток уходит в гачу
@@ -279,7 +311,17 @@ export function driverBot(state) {
   const weakest = squad.reduce((m, d) => Math.min(m, (d.off + d.def) / 2), Infinity)
   const packId = weakest >= ALLSTAR_SWITCH_RATING ? 'allstar' : 'pro'
   let draws = 0
+  const gemsBefore = state.gems
+  const rateBefore = ratePerSec(state)
   while (state.canDraw(packId) && draws < 500) { state.drawPack(packId); draws++ }
   state.roster.autoManage(state.activeClass)
+  // Замер после autoManage: гача полезна ровно настолько, насколько выпавшее
+  // попало в состав. Скользящее среднее, а не последний заход: гача случайна,
+  // и на одиночном заходе без легендарки порог обнулялся бы до нуля.
+  const spentGems = gemsBefore - state.gems
+  if (spentGems > 0) {
+    const gain = Math.max(0, ratePerSec(state) - rateBefore) * HORIZON_SEC / spentGems
+    gacha.perGem = gacha.perGem === null ? gain : 0.7 * gacha.perGem + 0.3 * gain
+  }
   return draws
 }

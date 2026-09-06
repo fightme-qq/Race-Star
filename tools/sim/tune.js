@@ -2,6 +2,7 @@ import './headless.js'
 import { fastSim } from './fastsim.js'
 import { cheapestFirst, resetPolicyCache } from './policies.js'
 import { switchRoi, switchAsap } from './classplan.js'
+import { withoutShop, withoutGacha } from './sinks.js'
 import { milestoneTargets, unlockSec, scoreRun } from './targets.js'
 import { ECONOMY, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { SHOP } from '../../src/config/shop.js'
@@ -50,17 +51,32 @@ const DECISION_GAP = 1.25
 // «деньги за гемы» и гача. Если курс щедрый, весь приток уходит в магазин и
 // ВТОРАЯ ОСЬ СИЛЫ умирает; если скупой — вкладка декорация. Оба исхода дают
 // приличные вехи, потому что деньги в игре всё равно появляются.
-// Поэтому требование ставится прямо на долю: магазину должно доставаться
-// заметно, но меньше половины.
-const SHOP_SHARE = [0.12, 0.45]
+//
+// ПЕРЕСОБРАНО. Сдавалось это требованием на ДОЛЮ гемов (`SHOP_SHARE` = 12-45%),
+// и доля оказалась не той величиной — по двум причинам сразу.
+// Во-первых, бот не выбирает долю: он тратит в порядке вызова, и доля выходит
+// из дневных лимитов, а не из курса. При cashRateMult 1.0 и 0.85 она одна и та
+// же (57%), то есть штраф был вне досягаемости единственной координаты
+// магазина, и перебор честно сходился, ничего не исправив.
+// Во-вторых, сама доля ничего не гарантирует. Прямой замер при курсе 1.0:
+// «только гача» $25.8B против $23.3B у смешанной игры — доля 51%, а магазин
+// при этом ОТНИМАЛ. Требование выполнялось бы на конфиге, где вкладка вредна.
+//
+// Теперь проверяется то же, что у политик закупки и планов перехода: НУЖНЫ ЛИ
+// ОБЕ ТРАТЫ. Ни один сток в одиночку не должен обыгрывать смешанную игру, и с
+// запасом — иначе точка стоит на грани, где второй сток уже декорация.
+const SINK_GAP = 1.10
 
-function shopPenalty(run) {
-  const total = run.gemsShop + run.gemsPacks
-  if (total < 1) return 4   // гемы не тратятся вовсе — сломан приток, а не доля
-  const share = run.gemsShop / total
-  if (share < SHOP_SHARE[0]) return 0.8 * Math.pow(Math.log(share / SHOP_SHARE[0]), 2)
-  if (share > SHOP_SHARE[1]) return 0.8 * Math.pow(Math.log(share / SHOP_SHARE[1]), 2)
-  return 0
+function sinkPenalty(mixed, seed, hours) {
+  const one = (fn) => fn(() => fastSim({
+    hours, policy: cheapestFirst, seed, classPlan: switchRoi,
+  }).earned)
+  let pen = 0
+  for (const earned of [one(withoutShop), one(withoutGacha)]) {
+    const gap = mixed.earned / Math.max(1, earned)
+    if (gap < SINK_GAP) pen += 0.8 * Math.pow(Math.log(gap / SINK_GAP), 2)
+  }
+  return pen
 }
 
 export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
@@ -73,7 +89,9 @@ export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
     // «за сколько накопит», а не «за сколько дойдёт».
     last = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchRoi })
     score += scoreRun(last)
-    score += shopPenalty(last)
+    // Замер стоков — только на первом сиде: он стоит двух лишних прогонов, а
+    // мерит требование к ДИЗАЙНУ, которое от сида не зависит.
+    if (seed === seeds[0]) score += sinkPenalty(last, seed, hours)
     const naive = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchAsap })
     const gap = last.earned / Math.max(1, naive.earned)
     if (gap < DECISION_GAP) score += 0.8 * Math.pow(Math.log(gap / DECISION_GAP), 2)
@@ -164,6 +182,13 @@ const SEED_POINTS = [
   { parkPg: 2.3068, fanPg: 2.0555, leaguePrizeMult: 1.4500,
     leagueStep: 1.4898, promoteRatio: 1.8122, prizeSeconds: 5.85,
     classFanMult: 2.0, idleClassShare: 0.5, cashRateMult: 1.0 },
+  // Точка первого прогона шага 5 (счёт 1.307 по прежнему требованию на ДОЛЮ
+  // гемов) с курсом, снятым ручным замером стоков: при 1.0 магазин отнимает
+  // ($23.3B против $25.8B без него), при 8.0 гача становится декорацией
+  // ($61.4B против $69.2B без неё), смешанная игра выигрывает у обеих около 3.
+  { parkPg: 2.3068, fanPg: 1.8975, leaguePrizeMult: 1.4500,
+    leagueStep: 1.4124, promoteRatio: 1.7181, prizeSeconds: 4.985,
+    classFanMult: 1.8961, idleClassShare: 0.5, cashRateMult: 3.0 },
 ]
 
 // Точки прежних шагов не знают двух новых координат, а applyTune пишет их в

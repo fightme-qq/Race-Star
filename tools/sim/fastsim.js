@@ -4,7 +4,10 @@ import { GameState } from '../../src/systems/GameState.js'
 import { applyRaceResult } from '../../src/systems/RaceRewards.js'
 import { RACE, CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 import { fastRace } from './fastrace.js'
-import { driverBot, careerBot, rewardsBot, shopBot } from './policies.js'
+import {
+  driverBot, careerBot, rewardsBot, shopBot,
+  resetGachaValue, gachaPerGem, packPerGem,
+} from './policies.js'
 import { stayFirst } from './classplan.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
@@ -31,6 +34,10 @@ export function fastSim({
 }) {
   clock.reset()
   localStorage.clear()
+  // Измеренная ценность гачи — состояние ПРОГОНА, а не точки перебора: без
+  // сброса среднее от cheapestFirst утекало бы в economyOnly, и две политики
+  // отличались бы порогом магазина, а не тем, что они покупают.
+  resetGachaValue()
   const rng = new SeededRandom(seed)
   const state = new GameState()
   // Гача берёт сид из Roster, а тот при первом запуске тянет randomSeed().
@@ -121,6 +128,8 @@ export function fastSim({
         squad: sq.off + sq.def, draws, skills, career: state.career.level,
         cls: state.clsDef.index,
         levels: Object.values(state.cls.levels).reduce((a, b) => a + b, 0),
+        // Оба курса магазина — см. gachaPerGem() в policies.js.
+        packPerGem: packPerGem(state), gachaPerGem: gachaPerGem(),
       })
     }
   }
