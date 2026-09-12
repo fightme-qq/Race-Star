@@ -2,10 +2,12 @@ import './headless.js'
 import { fastSim } from './fastsim.js'
 import { cheapestFirst, resetPolicyCache } from './policies.js'
 import { switchRoi, switchAsap } from './classplan.js'
-import { withoutShop, withoutGacha } from './sinks.js'
+import { withoutShop, withoutGacha, withoutGear, withoutGarage, withoutLucky } from './sinks.js'
 import { milestoneTargets, unlockSec, scoreRun } from './targets.js'
 import { ECONOMY, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { SHOP } from '../../src/config/shop.js'
+import { GEAR } from '../../src/config/gear.js'
+import { GARAGE } from '../../src/config/garage.js'
 import { RACE_CLASSES } from '../../src/config/classes.js'
 import { SeededRandom } from '../../src/utils/rng.js'
 
@@ -24,6 +26,11 @@ export function applyTune(p) {
   ECONOMY.idleClassShare = p.idleClassShare
   SEASON.promoteRatio = p.promoteRatio
   SHOP.cashRateMult = p.cashRateMult
+  // Шаги 6-7: два общих множителя вклада новых осей силы. Это ровно те
+  // координаты, из-за которых переподгонка здесь обязательна — гир и гараж
+  // складываются с составом ДО процентов апгрейдов, то есть усиливают и их.
+  GEAR.statMult = p.gearStat
+  GARAGE.statMult = p.garageStat
   // Первая ступень 190 — ROOKIE снята с кадров [F], дальше геометрия [X].
   LEAGUES.forEach((l, i) => { l.power = Math.round(190 * Math.pow(p.leagueStep, i)) })
   for (const cls of RACE_CLASSES) {
@@ -67,13 +74,30 @@ const DECISION_GAP = 1.25
 // запасом — иначе точка стоит на грани, где второй сток уже декорация.
 const SINK_GAP = 1.10
 
-function sinkPenalty(mixed, seed, hours) {
-  const one = (fn) => fn(() => fastSim({
-    hours, policy: cheapestFirst, seed, classPlan: switchRoi,
-  }).earned)
+// Стоков стало ПЯТЬ: денежные паки магазина, гача драйверов, паки гира, части
+// машины и Lucky Draw. Требование то же — ни один в одиночку не обыгрывает
+// смешанную игру, — но цена проверки выросла впятеро, поэтому она считается на
+// укороченном горизонте. Это законно: требование к ДИЗАЙНУ (нужна ли трата) не
+// зависит от длины прогона, в отличие от вех, которые мерятся только на 700ч.
+const SINK_HOURS = 300
+const SINKS = [
+  ['shop', withoutShop], ['gacha', withoutGacha],
+  ['gear', withoutGear], ['garage', withoutGarage], ['lucky', withoutLucky],
+]
+
+export function sinkGaps(seed = 1, hours = SINK_HOURS) {
+  const mixed = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchRoi }).earned
+  return SINKS.map(([name, fn]) => {
+    const without = fn(() => fastSim({
+      hours, policy: cheapestFirst, seed, classPlan: switchRoi,
+    }).earned)
+    return { name, gap: mixed / Math.max(1, without), mixed, without }
+  })
+}
+
+function sinkPenalty(seed) {
   let pen = 0
-  for (const earned of [one(withoutShop), one(withoutGacha)]) {
-    const gap = mixed.earned / Math.max(1, earned)
+  for (const { gap } of sinkGaps(seed)) {
     if (gap < SINK_GAP) pen += 0.8 * Math.pow(Math.log(gap / SINK_GAP), 2)
   }
   return pen
@@ -91,7 +115,7 @@ export function evaluate(p, { hours = 700, seeds = [1, 2] } = {}) {
     score += scoreRun(last)
     // Замер стоков — только на первом сиде: он стоит двух лишних прогонов, а
     // мерит требование к ДИЗАЙНУ, которое от сида не зависит.
-    if (seed === seeds[0]) score += sinkPenalty(last, seed, hours)
+    if (seed === seeds[0]) score += sinkPenalty(seed)
     const naive = fastSim({ hours, policy: cheapestFirst, seed, classPlan: switchAsap })
     const gap = last.earned / Math.max(1, naive.earned)
     if (gap < DECISION_GAP) score += 0.8 * Math.pow(Math.log(gap / DECISION_GAP), 2)
@@ -138,6 +162,12 @@ const SPACE = {
   // Курс паков «деньги за гемы» (config/shop.js). Границы широкие нарочно:
   // это первое число магазина, и до прогона неизвестно даже, какого оно порядка.
   cashRateMult:  [0.05, 20],
+  // Вклад гира и гаража. Границы широкие: это первые числа двух новых осей, и
+  // до прогона неизвестно даже, какого они порядка. Нижняя не нулевая нарочно —
+  // ноль означал бы «вкладки нет», а её наличие проверяется штрафом стоков, а
+  // не границей.
+  gearStat:      [0.15, 5.0],
+  garageStat:    [0.15, 5.0],
 }
 
 // Найденные предыдущими прогонами точки — чтобы расширение пространства
@@ -189,17 +219,26 @@ const SEED_POINTS = [
   { parkPg: 2.3068, fanPg: 1.8975, leaguePrizeMult: 1.4500,
     leagueStep: 1.4124, promoteRatio: 1.7181, prizeSeconds: 4.985,
     classFanMult: 1.8961, idleClassShare: 0.5, cashRateMult: 3.0 },
+  // Действующая точка перед шагами 6-9 плюс единичный вклад новых осей: держим,
+  // чтобы перебор не потерял уже найденное по остальным восьми координатам.
+  { parkPg: 2.3068, fanPg: 1.8975, leaguePrizeMult: 1.4500,
+    leagueStep: 1.4124, promoteRatio: 1.7181, prizeSeconds: 4.985,
+    classFanMult: 1.8961, idleClassShare: 0.5, cashRateMult: 3.0,
+    gearStat: 1.0, garageStat: 1.0 },
 ]
 
 // Точки прежних шагов не знают двух новых координат, а applyTune пишет их в
 // ECONOMY как есть — undefined превратил бы весь прогон в NaN молча.
-const DEFAULTS = { classFanMult: 1.5625, idleClassShare: 0.5, cashRateMult: 1.0 }
+const DEFAULTS = {
+  classFanMult: 1.5625, idleClassShare: 0.5, cashRateMult: 1.0,
+  gearStat: 1.0, garageStat: 1.0,
+}
 const full = (p) => ({ ...DEFAULTS, ...p })
 
 const sampleLog = (rng, [lo, hi]) => Math.exp(rng.float(Math.log(lo), Math.log(hi)))
 
 // Случайный поиск в логарифмическом пространстве + покоординатный спуск.
-export function search({ iters = 200, refine = 3, hours = 700 } = {}) {
+export function search({ iters = 100, refine = 2, hours = 700 } = {}) {
   const rng = new SeededRandom(20260902)
   let best = null
 

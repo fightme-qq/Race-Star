@@ -55,6 +55,41 @@ const tapObj = async (path) => {
   await tap(c.x, c.y)
 }
 
+
+// Поиск кнопки ПО ПОДПИСИ во всём дереве открытого окна. Пути вида
+// `modal.view.rows.0.btn` привязаны к тому, как именно собран экран, и ломаются
+// от любой перестановки блоков — а проверять надо, что кнопка нажимается, а не
+// где она лежит в дереве. Обходим контейнеры и ищем Button с нужным текстом.
+const findButton = (label, exact = false) => page.evaluate((lbl, ex) => {
+  const scene = window.__game.scene.getScene('Main')
+  const root = scene.modal ?? scene
+  const out = []
+  const walk = (obj, depth) => {
+    if (!obj || depth > 12) return
+    if (obj.txt?.text !== undefined && obj.boxW !== undefined) {
+      const t = String(obj.txt.text)
+      if (ex ? t === lbl : t.includes(lbl)) {
+        const b = obj.getBounds()
+        // Кнопка за пределами экрана (уехала под маску скролла) не нажимается —
+        // возвращать её значило бы тапать в пустоту и списывать это на логику.
+        if (b.centerY > 0 && b.centerY < 844 && obj.visible && obj.enabled !== false) {
+          out.push({ x: b.centerX, y: b.centerY, text: t })
+        }
+      }
+    }
+    for (const child of obj.list ?? []) walk(child, depth + 1)
+  }
+  walk(root, 0)
+  return out[0] ?? null
+}, label, exact)
+
+const tapButton = async (label, exact = false) => {
+  const hit = await findButton(label, exact)
+  if (!hit) throw new Error('не нашёл кнопку: ' + label)
+  await tap(hit.x, hit.y)
+  return hit.text
+}
+
 const steps = []
 const step = async (name, fn) => {
   try { steps.push({ name, ...(await fn()) }) }
@@ -304,6 +339,82 @@ await step('вкладка магазина', async () => {
   }, { opened, before, afterFree, cashBefore })
 })
 
+
+// 7d. Вкладка 2 — гир: пак за гемы, автоэкипировка поднимает силу команды.
+await step('вкладка гира', async () => {
+  await tapObj('nav.items.1.zone')
+  const opened = await page.evaluate(() => !!window.__game.scene.getScene('Main').modal)
+  await page.evaluate(() => { window.__game.scene.getScene('Main').state.gems += 600 })
+  const before = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { items: s.gear.items.length, power: Math.round(s.teamPower), gems: s.gems }
+  })
+  await tapObj('modal.tabs.1')            // PACKS
+  await tapButton('Open x10')
+  const afterDraw = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { items: s.gear.items.length, gems: s.gems }
+  })
+  await tapObj('modal.tabs.0')            // GEAR — слоты
+  await tapButton('Auto')
+  return page.evaluate((ctx) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const worn = Object.keys(s.gear.equip[s.activeClass] ?? {}).length
+    const ok = ctx.opened
+      && ctx.afterDraw.items >= ctx.before.items + 10
+      && ctx.afterDraw.gems < ctx.before.gems
+      && worn > 0 && Math.round(s.teamPower) > ctx.before.power
+    main.modal.close()
+    return { ok, worn, power: Math.round(s.teamPower), was: ctx }
+  }, { opened, before, afterDraw })
+})
+
+// 7e. Гараж открывается ИЗ гира (вкладок меню ровно шесть) и апгрейдит машину.
+await step('гараж', async () => {
+  await tapObj('nav.items.1.zone')
+  await tapButton('GARAGE', true)
+  const opened = await page.evaluate(() =>
+    !!window.__game.scene.getScene('Main').modal?.box)
+  await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    s.addCash(s.incomePerSec * 1e6)
+  })
+  const before = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    const car = s.car
+    return { car: car?.id ?? null, level: s.garage.cars[car?.id]?.level ?? 0, power: Math.round(s.teamPower) }
+  })
+  await tapButton('Upgrade')
+  return page.evaluate((ctx) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const level = s.garage.cars[ctx.car]?.level ?? 0
+    const ok = ctx.opened && !!ctx.car && level > ctx.level
+      && Math.round(s.teamPower) > ctx.power
+    main.modal.close()
+    return { ok, car: ctx.car, level, power: Math.round(s.teamPower), was: ctx }
+  }, before)
+})
+
+// 7f. Арена: матч тратит тикет и даёт медали (шаг 8).
+await step('арена', async () => {
+  await tapObj('nav.items.3.zone')
+  await tapObj('modal.tabs.1')            // ARENA
+  const before = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Main').state
+    return { tickets: s.arena.tickets, medals: s.arena.medalsToday }
+  })
+  await tapButton('Challenge')
+  return page.evaluate((ctx) => {
+    const main = window.__game.scene.getScene('Main')
+    const s = main.state
+    const ok = s.arena.tickets === ctx.tickets - 1 && s.arena.medalsToday > ctx.medals
+    main.modal.close()
+    return { ok, tickets: s.arena.tickets, medals: s.arena.medalsToday, was: ctx }
+  }, before)
+})
+
 // 8. Закрытие: сейв переживает перезагрузку страницы.
 await step('сейв и закрытие', async () => {
   await page.evaluate(() => {
@@ -317,6 +428,10 @@ await step('сейв и закрытие', async () => {
       drivers: s.roster.drivers.length, power: Math.round(s.teamPower),
       skills: s.career.spent.racecraft,
       league: s.cls.league, seasons: s.cls.history.length,
+      // Шаги 6-8: сейв поднялся до v8, и если новые блоки в него не попали,
+      // перезагрузка молча сбросит две оси силы и все соревнования.
+      gear: s.gear.items.length, cars: Object.keys(s.garage.cars).length,
+      medals: s.arena.medals,
     }
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
@@ -327,7 +442,9 @@ await step('сейв и закрытие', async () => {
     return {
       ok: s.roster.drivers.length === b.drivers && Math.round(s.teamPower) === b.power
         && s.career.spent.racecraft === b.skills
-        && s.cls.league === b.league && s.cls.history.length === b.seasons,
+        && s.cls.league === b.league && s.cls.history.length === b.seasons
+        && s.gear.items.length === b.gear
+        && Object.keys(s.garage.cars).length === b.cars && s.arena.medals === b.medals,
       drivers: s.roster.drivers.length, power: Math.round(s.teamPower),
       skills: s.career.spent.racecraft,
       league: s.cls.league, seasons: s.cls.history.length, was: b,

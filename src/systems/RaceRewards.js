@@ -54,6 +54,12 @@ export function applyRaceResult(state, position, order = null) {
   state.track?.('raceFinish')
   if (position === 1) state.track?.('raceWin')
 
+  // Пробег класса за всю игру: от него открываются слоты гира [E] `Play {0}
+  // races to unlock`. Считается здесь, а не в контроллере гонки, по правилу 7 —
+  // иначе у стенда слоты не открывались бы вовсе, и третья ось силы
+  // подбиралась бы по игре, в которую игрок не играет (правило 20).
+  state.cls.races = (state.cls.races || 0) + 1
+
   let gems = 0
   if (position === 1) {
     gems = state.addGems(GEMS.perWin)
@@ -96,5 +102,19 @@ export function applyRaceResult(state, position, order = null) {
     state.cls.seasonScore = 0
   }
 
-  return { position, prize: prize + flat, fans, gems, seasonEnded, promoted, careerXp, careerLevels }
+  // Раунды турнирной сетки (шаг 8) открываются по пробегу класса, и двигать их
+  // обязан тот же код, что раздаёт награды за финиш (правило 7). Иначе стенд
+  // играет в игру без турниров, а игрок — с турнирами, и приток гемов у них
+  // расходится (та же причина, по которой здесь же стоят счётчики задач).
+  const brackets = state.tickBrackets ? state.tickBrackets() : []
+
+  // Пак коллекции [E] «Packs can be earned by playing the game» — здесь же, по
+  // правилу 7: это единственный источник паков (гемами они не продаются), и
+  // считать его вне общего кода значило бы, что у стенда коллекций нет.
+  const collectionPack = state.trackCollection ? state.trackCollection() : false
+
+  return {
+    position, prize: prize + flat, fans, gems, seasonEnded, promoted,
+    careerXp, careerLevels, brackets, collectionPack,
+  }
 }

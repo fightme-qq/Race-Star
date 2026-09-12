@@ -141,3 +141,31 @@ export function placeDist(shape, leaguePower) {
 
 export const placeDistOf = (off, def, leaguePower) =>
   placeDist(racerShape(off, def), leaguePower)
+
+// Дуэль один на один — для Champions Arena (шаг 8). Живёт ЗДЕСЬ, а не в
+// ArenaSystem, по правилу 16: копия формулы заезда в другом файле означает, что
+// арена оценивает силу иначе, чем трасса, и игрок, собравший команду под
+// лигу, в арене проигрывает по причине, которой не видит.
+//
+// Это НЕ placeDist с одним соперником. Правило 17 (места не независимы) здесь
+// неприменимо — соперник ровно один, свёртки нет. Зато режим разыгрывается
+// ОБОИМ: и мне, и ему, поэтому исходов четыре, и веса перемножаются.
+//
+// [E] `Your chance of winning depends on your Team Power compared to your
+// opponent's` + `Win Chance is shown during the Arena match` — то есть число
+// показывается игроку, и считать его надо тем же, чем решается бой.
+export function duelProb(mine, theirs) {
+  const w = RACE.attackWeight
+  const mix = (shape) => [[w, shape.attack], [1 - w, shape.hold]]
+  let p = 0
+  for (const [pm, myStat] of mix(mine)) {
+    for (const [po, opStat] of mix(theirs)) {
+      const sd = Math.sqrt(mine.sigma * mine.sigma + theirs.sigma * theirs.sigma)
+      p += pm * po * normCdf((logPace(myStat) - logPace(opStat)) / sd)
+    }
+  }
+  return p
+}
+
+export const duelProbOf = (off, def, oppPower) =>
+  duelProb(racerShape(off, def), opponentShape(oppPower))

@@ -5,8 +5,8 @@ import { applyRaceResult } from '../../src/systems/RaceRewards.js'
 import { RACE, CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 import { fastRace } from './fastrace.js'
 import {
-  driverBot, careerBot, rewardsBot, shopBot,
-  resetGachaValue, gachaPerGem, packPerGem,
+  driverBot, careerBot, rewardsBot, shopBot, gearBot, garageBot, competeBot, luckyBot,
+  resetGachaValue, resetGemPlan, gemSplitReport, gachaPerGem, packPerGem,
 } from './policies.js'
 import { stayFirst } from './classplan.js'
 import { SeededRandom } from '../../src/utils/rng.js'
@@ -24,7 +24,7 @@ const DRIVER_EVERY = 10
 // игре тоже (`assign` отказывал занятому драйверу), то есть стенд играл бы в
 // то, чего игроку не дают.
 const takeSquad = (state, classId) =>
-  state.roster.autoManage(classId, { reassign: true })
+  state.roster.autoManage(classId, { reassign: true, seats: state.seats })
 
 // Прогон на сотни игровых часов: заезд считается ранжированием формы
 // (см. fastrace.js), награды — общим с игрой RaceRewards.
@@ -38,6 +38,9 @@ export function fastSim({
   // сброса среднее от cheapestFirst утекало бы в economyOnly, и две политики
   // отличались бы порогом магазина, а не тем, что они покупают.
   resetGachaValue()
+  // Делитель гемов между тремя силовыми стоками — тоже состояние ПРОГОНА
+  // (см. GEM_SHARES в policies.js), иначе доли одной политики утекают в другую.
+  resetGemPlan()
   const rng = new SeededRandom(seed)
   const state = new GameState()
   // Гача берёт сид из Roster, а тот при первом запуске тянет randomSeed().
@@ -62,6 +65,13 @@ export function fastSim({
   // силы» выглядит в отчёте ровно так же, как «магазин никому не нужен».
   let gemsShop = 0
   let gemsPacks = 0
+  // Третий и четвёртый гемовые стоки (шаги 6-7). Считаем отдельно по той же
+  // причине, что shop и packs: «гир съел гачу» и «гир никому не нужен» в общей
+  // сумме выглядят одинаково.
+  let gemsGear = 0
+  let gearActs = 0
+  let garageActs = 0
+  let competeActs = 0
   let nextSample = 0
   // Когда и во что игрок переехал: без этого списка непонятно, чем именно
   // отличаются стратегии, — итоговая сумма показывает только «лучше/хуже».
@@ -96,6 +106,10 @@ export function fastSim({
     // Награды — СТРОГО до гачи: собранные гемы должны попасть в тот же заход,
     // иначе бот копит их лишний цикл и приток выглядит меньше, чем он есть.
     if (race % DRIVER_EVERY === 0) {
+      // Соревнования — СТРОГО до наград: их выплаты приходят письмом [E], а
+      // письма разбирает rewardsBot. Обратный порядок означал бы, что каждая
+      // награда турнира лежит в почте лишний цикл.
+      competeActs += competeBot(state)
       claims += rewardsBot(state)
       // Магазин — СТРОГО между наградами и гачей: собранные гемы должны дойти
       // до дневных лимитированных паков, а в гачу уходит только остаток.
@@ -110,6 +124,15 @@ export function fastSim({
       // Заработанное магазином входит в `earned`: без этого разрыв стратегий
       // (DECISION_GAP в tune.js) мерился бы по неполным деньгам.
       earned += state.cash - cashBeforeShop
+      // Гир и гараж — СТРОГО до гачи драйверов и в этом порядке: обе траты
+      // берут долю от ТЕКУЩЕГО кошелька (GEM_SPLIT в policies.js), а гача
+      // сливает остаток в ноль. Поставить её раньше значило бы, что долей
+      // никогда ничего не достаётся, и две новые оси силы мертвы.
+      const gemsBeforeGear = state.gems
+      gearActs += gearBot(state)
+      garageActs += garageBot(state)
+      garageActs += luckyBot(state)
+      gemsGear += Math.max(0, gemsBeforeGear - state.gems)
       const gemsBeforeDraw = state.gems
       draws += driverBot(state)
       gemsPacks += Math.max(0, gemsBeforeDraw - state.gems)
@@ -136,7 +159,8 @@ export function fastSim({
 
   return {
     hours, races: totalRaces, purchases, draws, skills, claims, earned,
-    deals, shopCash, gemsShop, gemsPacks,
+    deals, shopCash, gemsShop, gemsPacks, gemsGear, gearActs, garageActs,
+    gemSplit: gemSplitReport(), competeActs,
     places, samples, milestones, switches, state,
   }
 }

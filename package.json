@@ -18,7 +18,8 @@
     "diff": "node tools/refdiff.mjs",
     "ref:pull": "node tools/refpull.mjs",
     "sim:rewards": "node tools/sim/rewards.js",
-    "sim:track": "node tools/sim/track.js"
+    "sim:track": "node tools/sim/track.js",
+    "sim:compete": "node tools/sim/compete.js"
   },
   "dependencies": {
     "phaser": "^3.87.0"

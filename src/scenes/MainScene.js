@@ -14,6 +14,8 @@ import { CareerModal } from '../ui/career/CareerModal.js'
 import { LeaguesModal } from '../ui/leagues/LeaguesModal.js'
 import { RewardsModal } from '../ui/rewards/RewardsModal.js'
 import { ShopModal } from '../ui/shop/ShopModal.js'
+import { GearModal } from '../ui/gear/GearModal.js'
+import { GarageModal } from '../ui/garage/GarageModal.js'
 import { formatMoney } from '../utils/format.js'
 import {
   NAV_H, RACE_Y, RACE_H, GRID_Y, GRID_H, SIDE,
@@ -46,11 +48,12 @@ export class MainScene extends Phaser.Scene {
 
     this.nav = new BottomNav(this, height - NAV_H, width, (i, tab) => {
       if (i === 0) { this.nav.setActive(0); return }
+      if (i === 1) { this.openGear(); return }
       if (i === 2) { this.openDrivers(); return }
       if (i === 3) { this.openLeagues(); return }
       if (i === 4) { this.openRewards(); return }
       if (i === 5) { this.openShop(); return }
-      this.toasts.show(tab.title + ' — coming in a later stage', PAL.muted)
+      this.toasts.show(tab.title, PAL.muted)
     })
 
     this.race = new RaceController(this.state, {
@@ -127,6 +130,20 @@ export class MainScene extends Phaser.Scene {
       },
     })
   }
+
+  // Вкладка 2 — гир. Гараж открывается из неё: вкладок в меню ровно шесть [F],
+  // а гир и гараж — две части одной работы и делят механику предметов.
+  openGear() {
+    this.openModal(GearModal, {
+      navIndex: 1,
+      onGarage: () => {
+        this.modal?.close()
+        this.openGarage()
+      },
+    })
+  }
+
+  openGarage() { this.openModal(GarageModal, { navIndex: 1 }) }
 
   openDrivers() { this.openModal(DriversModal, { navIndex: 2 }) }
   openLeagues(classId) { this.openModal(LeaguesModal, { navIndex: 3, classId }) }

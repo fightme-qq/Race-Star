@@ -116,9 +116,12 @@ export class Roster {
   // Именно обмен, а не освобождение слота: дыра в чужом составе заполнилась бы
   // новыми стартовыми при следующей загрузке (`ensureStarters`), то есть
   // переход между классами печатал бы драйверов из воздуха.
-  assign(classId, slot, uid) {
+  // `seats` — сколько слотов у состава СЕЙЧАС. С шага 6 это не константа:
+  // `STARTERS ({0})` [E], на планшетном кадре девять [F]. По умолчанию пятёрка,
+  // чтобы вызов без параметра оставался безопасным.
+  assign(classId, slot, uid, seats = SQUAD_SIZE) {
     const list = this.squads[classId]
-    if (!list || slot < 0 || slot >= SQUAD_SIZE) return false
+    if (!list || slot < 0 || slot >= seats) return false
     if (!this.get(uid)) return false
     const busy = this.squadSlotOf(uid)
     if (busy && busy[0] === classId && busy[1] === slot) return false
@@ -204,7 +207,7 @@ export class Roster {
   // перехода в новый класс это единственный осмысленный ход, поэтому кнопка
   // Auto и бот стенда зовут её с обменом (см. assign: слоты меняются местами,
   // чужой состав остаётся полным).
-  autoManage(classId, { reassign = false } = {}) {
+  autoManage(classId, { reassign = false, seats = SQUAD_SIZE } = {}) {
     const list = this.squads[classId]
     if (!list) return null
 
@@ -217,7 +220,7 @@ export class Roster {
     const ranked = [...this.drivers].sort((a, b) => ratingOf(b) - ratingOf(a))
     const wanted = []
     for (const d of ranked) {
-      if (wanted.length >= SQUAD_SIZE) break
+      if (wanted.length >= seats) break
       if (!reassign && this.inSquad(d.uid) && !list.includes(d.uid)) continue
       wanted.push(d.uid)
     }
@@ -226,7 +229,7 @@ export class Roster {
     // командах сразу, и `inSquad` начал бы врать.
     for (let i = 0; i < wanted.length; i++) {
       if (list[i] === wanted[i]) continue
-      this.assign(classId, i, wanted[i])
+      this.assign(classId, i, wanted[i], seats)
     }
     this.touch()
 

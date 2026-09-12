@@ -39,6 +39,10 @@ export function freshRewards(now = Date.now()) {
     // них та же граница суток, что у задач, и подпись «Resets in» на двух
     // экранах обязана считаться одним кодом.
     shop: { key: dayKey(now), ...freshShop() },
+    // Дневные счётчики вкладки 2 — по той же причине, что и магазинные:
+    // бесплатное открытие гира по рекламе [E] `Watch an ad to get gear for
+    // free` сбрасывается на той же границе суток, что задачи.
+    gear: { key: dayKey(now), ads: 0 },
   }
 }
 
@@ -55,6 +59,7 @@ export function rollover(rw, now = Date.now()) {
   // Сейв, снятый до шага 5, ведра магазина не содержит — без этой ветки первый
   // же вызов упал бы на `rw.shop.packs`.
   if (!rw.shop || rw.shop.key !== dk) rw.shop = { key: dk, ...freshShop() }
+  if (!rw.gear || rw.gear.key !== dk) rw.gear = { key: dk, ads: 0 }
   const wk = weekIndex(now)
   if (rw.weekly.key !== wk) {
     rw.weekly = { key: wk, progress: zeroProgress(), claimed: [] }

@@ -5,6 +5,8 @@ import { ECONOMY, RACE, LEAGUES, SEASON } from '../../src/config/balance.js'
 import { SKILLS } from '../../src/config/career.js'
 import { canSpend, pointsFree, rankOf } from '../../src/systems/CareerSystem.js'
 import { racerShape, placeDist } from '../../src/systems/RaceModel.js'
+import { GEAR_PACKS } from '../../src/config/gear.js'
+import { PART_PACKS } from '../../src/config/garage.js'
 
 const buyableKeys = (state) =>
   state.clsDef.upgrades.filter((u) => u.currency === 'cash').map((u) => u.key)
@@ -313,8 +315,15 @@ export function driverBot(state) {
   let draws = 0
   const gemsBefore = state.gems
   const rateBefore = ratePerSec(state)
-  while (state.canDraw(packId) && draws < 500) { state.drawPack(packId); draws++ }
-  state.roster.autoManage(state.activeClass)
+  // Доля гачи в общем гемовом притоке — та же конструкция, что у гира и частей
+  // (см. GEM_SHARES): без неё самый дешёвый сток забирает весь кошелёк.
+  while (state.canDraw(packId) && underweight('drivers') && draws < 500) {
+    const cost = state.packPrice(packId, 1)
+    if (!state.drawPack(packId)) break
+    noteGems('drivers', cost)
+    draws++
+  }
+  state.roster.autoManage(state.activeClass, { seats: state.seats })
   // Замер после autoManage: гача полезна ровно настолько, насколько выпавшее
   // попало в состав. Скользящее среднее, а не последний заход: гача случайна,
   // и на одиночном заходе без легендарки порог обнулялся бы до нуля.
@@ -324,4 +333,209 @@ export function driverBot(state) {
     gacha.perGem = gacha.perGem === null ? gain : 0.7 * gacha.perGem + 0.3 * gain
   }
   return draws
+}
+
+// --- Гир драйверов и гараж (шаги 6-7) ------------------------------------
+// Гемы стали кошельком ЧЕТЫРЁХ трат: паки драйверов, паки гира, части машины и
+// денежные паки магазина. Это ровно та конструкция, которая на шаге 5 чуть не
+// убила вторую ось силы (правило 26b), только теперь стоков вдвое больше.
+//
+// Бот НЕ выбирает между стоками по курсу, и это сознательно — та же причина,
+// по которой порог выкинут из shopBot: заход из десяти роллов чаще всего не
+// меняет ни состав, ни надетое, он копит pity и дубликаты, которые платят
+// потом, при merge. Мгновенная прибавка к ratePerSec этого не видит и занижает
+// ценность любой гачи систематически.
+//
+// Поэтому доли — ПАРАМЕТР БОТА, а не игры: игрок держит все оси, вкладывая в
+// каждую примерно постоянную часть притока. Требование «ни один сток в
+// одиночку не обыгрывает смешанную игру» проверяется прогоном с выключенным
+// стоком (tools/sim/sinks.js), а не этими числами.
+// Гемы делятся между ТРЕМЯ силовыми стоками: паки гира, части машины и гача
+// драйверов. (Четвёртый, денежные паки магазина, живёт отдельно — он ограничен
+// дневным лимитом и расходует остаток по правилу 26b.)
+//
+// Делитель пришлось переписать ДВА РАЗА, и оба провала стоит держать здесь,
+// потому что оба выглядели правдоподобно.
+//
+// Версия 1 — «доля от кошелька на каждом заходе». Гир получил 12 гемов против
+// 460 у гачи, частей ноль. Причина арифметическая: пак гира стоит 12 гемов,
+// частей 20, ролл гачи 10, и при кошельке в 30 гемов доля 0.30 даёт 9 — ни на
+// что. Самый ДЕШЁВЫЙ сток забирает всё, в каком бы порядке ни стоял.
+//
+// Версия 2 — «гача оставляет резерв на одно открытие каждого нового стока».
+// Маятник качнулся ровно наоборот: гир и части съели весь приток, гача получила
+// НОЛЬ. Резерв не ограничивает того, кто стоит первым.
+//
+// Версия 3 (эта) — водоналивной делитель по НАКОПЛЕННЫМ долям. Сток тратит,
+// пока его доля в сумме потраченного не дотянула до целевой, и останавливается,
+// когда перебрал. Тогда дорогой пак достижим (гемы копятся, пока перевес у
+// других), а дешёвый не выгребает кошелёк (он быстро становится перевешенным).
+// Доли — ПАРАМЕТР БОТА, а не игры: «ни один сток не лишний» проверяется
+// прогоном с выключенным стоком (tools/sim/sinks.js), а не этими числами.
+// Lucky Draw (шаг 9) — четвёртый силовой сток того же кошелька: в сетке лежат
+// осколки обеих осей, ядра Unique и легендарная машина [F]. Доли пересчитаны, а
+// не дописаны: сумма обязана остаться единицей, иначе делитель перестаёт делить.
+const GEM_SHARES = { gear: 0.26, parts: 0.20, drivers: 0.42, lucky: 0.12 }
+
+const gemSpent = { gear: 0, parts: 0, drivers: 0, lucky: 0 }
+
+// Сбрасывается на каждый прогон — как и измеренная ценность гачи: иначе доли,
+// набранные одной политикой, утекают в следующую, и две политики отличаются
+// историей делителя, а не тем, что они покупают.
+export const resetGemPlan = () => {
+  gemSpent.gear = 0; gemSpent.parts = 0; gemSpent.drivers = 0; gemSpent.lucky = 0
+}
+
+export const gemSplitReport = () => ({ ...gemSpent })
+
+const underweight = (sink) => {
+  const total = Object.values(gemSpent).reduce((a, b) => a + b, 0)
+  return gemSpent[sink] <= GEM_SHARES[sink] * total
+}
+
+const noteGems = (sink, amount) => { gemSpent[sink] += amount }
+
+// Осколки вкладываются только в НАДЕТОЕ (bestUpgrade), иначе бот прокачивал бы
+// предмет в сумке и силы бы это не давало — правило 15 в чистом виде.
+const sinkShards = (bag, owner, upgrade, cap = 40) => {
+  let n = 0
+  for (; n < cap; n++) {
+    const best = bag.bestUpgrade(owner)
+    if (!best || !upgrade(best.it.uid)) break
+  }
+  return n
+}
+
+// Общий ход «открыть паков на свою долю»: от дорогого к дешёвому (у дорогого
+// гарантия приходит за меньшее число открытий, то есть ступень редкости стоит
+// дешевле), x10 раньше x1 (та же цена за открытие, но pity копится быстрее).
+function drawWithin(state, sink, rows, price, draw) {
+  let acts = 0
+  for (const row of [...rows].reverse()) {
+    for (const count of [10, 1]) {
+      for (;;) {
+        if (!underweight(sink)) return acts
+        const cost = price(row.pack.id, count)
+        if (state.gems < cost || !draw(row.pack.id, count)) break
+        noteGems(sink, cost)
+        acts++
+      }
+    }
+  }
+  return acts
+}
+
+export function gearBot(state) {
+  let acts = 0
+  // Бесплатное первым: реклама [E] и купоны идут мимо гемов вообще.
+  while (state.watchGearAd()) acts++
+  for (const row of state.gearPacks) {
+    while (row.coupons > 0 && state.drawGear(row.pack.id, 1, true)) { acts++; break }
+  }
+  acts += drawWithin(state, 'gear', state.gearPacks,
+    (id, n) => state.gearPackPrice(id, n), (id, n) => state.drawGear(id, n))
+  acts += state.autoGear()
+  acts += sinkShards(state.gear, state.activeClass, (uid) => state.upgradeGear(uid))
+  return acts
+}
+
+export function garageBot(state) {
+  let acts = 0
+  // Машина за гемы — разовая покупка, и она идёт ПЕРЕД частями: части носит
+  // машина (partOwner), и купленные под слабую машину они никуда не деваются,
+  // но уровень у слабой машины оплачивается деньгами зря.
+  for (const row of state.carsOfClass()) {
+    if (!row.owned && row.def.unlock === 'gems' && state.buyCar(row.def.id)) acts++
+  }
+  acts += drawWithin(state, 'parts', state.partPacks,
+    (id, n) => state.partPackPrice(id, n), (id, n) => state.drawParts(id, n))
+  acts += state.autoGarage()
+  const car = state.car
+  if (car) {
+    acts += sinkShards(state.parts, `car:${car.id}`, (uid) => state.upgradePart(uid))
+    // Уровень машины стоит ДЕНЕГ (секунды дохода), то есть конкурирует с
+    // апгрейдами. Берём не больше одного за заход: иначе бот выкупает всю
+    // лестницу уровней в тот момент, когда доход впервые её перекрыл, и
+    // сравнение с политиками закупки теряет смысл.
+    if (state.upgradeActiveCar()) acts++
+  }
+  return acts
+}
+
+// --- Соревнования (шаг 8) ------------------------------------------------
+// Отдельный контур наград: арена, турниры, кубок и клуб платят гемами,
+// осколками и купонами. Кривую дохода они не трогают, но КОРМЯТ две оси силы,
+// подобранные на шагах 6-7, — значит прогон без них мерил бы другую игру
+// (правило 20). Писем это тоже касается: награды приходят почтой [E], а её
+// разбирает rewardsBot, то есть порядок вызова важен — компетишн ДО наград.
+export function competeBot(state) {
+  let acts = 0
+  // Регистрация во всё, куда пускают. Отказы содержательные (недельный турнир
+  // идёт классом недели, ступень кубка открывается лигой), и бот их не
+  // обходит — иначе стенд получал бы награды, недоступные игроку.
+  for (const kind of ['league', 'weekly', 'cup']) {
+    if (state.registerBracketFor(kind)) acts++
+  }
+  // Арена: тикеты всё равно сгорают на сбросе в 05:00 UTC [E], поэтому играть
+  // надо всегда, и выбор соперника — единственное решение. Берём самого
+  // сильного из тех, кого обыгрываем с запасом: медали за проигрыш есть, но
+  // втрое меньше.
+  for (let guard = 0; guard < 10; guard++) {
+    const opps = state.arenaOpponents
+    if (!opps.length) break
+    const scored = opps.map((o, i) => ({ i, chance: state.arenaChance(o) }))
+      .sort((a, b) => b.chance - a.chance)
+    const pick = scored.find((s) => s.chance >= 0.5) ?? scored[0]
+    if (!state.playArena(pick.i)) break
+    acts++
+  }
+  // Клуб: вступаем в самый сильный из доступных (порог силы [E]) и держим
+  // событие запущенным. Захватываем позиции, пока есть вызовы: верхние дороже
+  // по очкам [E], поэтому идём сверху.
+  if (state.club.joined === null) {
+    const rows = state.clubRows.filter((r) => r.canJoin)
+    if (rows.length && state.joinClub(rows.at(-1).index)) acts++
+  }
+  if (state.club.joined !== null) {
+    if (!state.clashOn) { if (state.startClash()) acts++ }
+    if (state.clashOn) {
+      for (let i = 0; i < 8 && state.clubChallengesLeft > 0; i++) {
+        if (state.capturePosition(i).ok) { acts++; break }
+      }
+    }
+  }
+  return acts
+}
+
+// Lucky Draw глазами игрока: сетка вычерпывается [E], поэтому крутить её надо до
+// конца — последние ячейки дороже по ожиданию, но в них лежит главный приз.
+// Доля та же конструкция, что у остальных стоков (GEM_SHARES).
+export function luckyBot(state) {
+  let acts = 0
+  for (let i = 0; i < 20; i++) {
+    if (!underweight('lucky') || state.luckyLeftNow <= 0) break
+    const cost = state.luckyPrice
+    if (state.gems < cost || !state.playLucky()) break
+    noteGems('lucky', cost)
+    acts++
+  }
+  // Коллекции: паки приходят за заезды (не за гемы), но открывать их и забирать
+  // награды альбомов — часть игры. Не делать этого значило бы подбирать баланс
+  // по игроку, который не открывает половину экрана (правило 25).
+  while (state.collectionState.packs > 0 && state.openCollectionPack()) acts++
+  for (const row of state.starShop) {
+    while (state.buyStarPackFor(row.id)) acts++
+  }
+  while (state.collectionState.packs > 0 && state.openCollectionPack()) acts++
+  for (const al of state.albums) {
+    if (al.complete && !al.claimed && state.claimAlbumReward(al.index).length) acts++
+  }
+  if (state.claimUltimateReward().length) acts++
+  // Ядра Unique: жертва — слабейший из резерва, как при merge [E].
+  for (const d of state.roster.drivers) {
+    if (!state.canCoreUp(d.uid)) continue
+    const victim = state.roster.sortedReserves().at(-1)
+    if (victim && state.coreUp(d.uid, victim.uid)) acts++
+  }
+  return acts
 }
