@@ -39,7 +39,7 @@ export class ClassesModal extends Phaser.GameObjects.Container {
     x.on('press', () => this.close())
     this.add([dim, sheet, title, this.subtitle, x])
 
-    this.scroll = new ScrollView(scene, bx + 6, by + 62, bw - 12, bh - 74)
+    this.scroll = new ScrollView(scene, bx + 6, by + 62, bw - 12, bh - 74, { fade: PAL.bg })
     this.cards = RACE_CLASSES.map((def) => {
       const card = new ClassCard(scene, state, def, bw - 24, {
         onPick: (id) => { onPick(id); this.close() },

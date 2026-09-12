@@ -42,7 +42,7 @@ export class CareerModal extends Phaser.GameObjects.Container {
 
     const cx = bx + 12, cy = by + 92
     const cw = bw - 24, ch = bh - 92 - 50
-    this.scroll = new ScrollView(scene, cx, cy, cw, ch)
+    this.scroll = new ScrollView(scene, cx, cy, cw, ch, { fade: PAL.panel })
     this.add(this.scroll)
     this.buildTree(scene, cw)
 

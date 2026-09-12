@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { PAL } from '../config/palette.js'
 import { GameState } from '../systems/GameState.js'
 import { RaceController } from '../systems/RaceController.js'
-import { TopBar, HEADER_H } from '../ui/TopBar.js'
+import { TopBar } from '../ui/TopBar.js'
 import { RacePanel } from '../ui/RacePanel.js'
 import { UpgradeGrid } from '../ui/UpgradeGrid.js'
 import { BottomNav } from '../ui/BottomNav.js'
@@ -15,11 +15,14 @@ import { LeaguesModal } from '../ui/leagues/LeaguesModal.js'
 import { RewardsModal } from '../ui/rewards/RewardsModal.js'
 import { ShopModal } from '../ui/shop/ShopModal.js'
 import { formatMoney } from '../utils/format.js'
-
-const NAV_H = 70
-const RACE_H = 306
+import {
+  NAV_H, RACE_Y, RACE_H, GRID_Y, GRID_H, SIDE,
+  TOAST_Y, TOAST_STACK, TOAST_MODAL_Y, TOAST_MODAL_STACK,
+} from '../config/layout.js'
 
 // Главный экран: гонка идёт непрерывно, апгрейды покупаются прямо во время неё.
+// Вся вертикаль (шапка → гонка → полоса тостов → сетка → меню) описана в
+// config/layout.js одной цепочкой — здесь только сборка.
 export class MainScene extends Phaser.Scene {
   constructor() { super({ key: 'Main' }) }
 
@@ -34,15 +37,12 @@ export class MainScene extends Phaser.Scene {
       onCareer: () => this.openCareer(),
     })
 
-    const raceY = HEADER_H + 8
-    this.racePanel = new RacePanel(this, this.state, 10, raceY, width - 20, RACE_H)
-
-    const gridY = raceY + RACE_H + 12
-    this.grid = new UpgradeGrid(this, this.state, 10, gridY, width - 20, height - NAV_H - gridY - 8,
+    this.racePanel = new RacePanel(this, this.state, SIDE, RACE_Y, width - SIDE * 2, RACE_H)
+    this.grid = new UpgradeGrid(this, this.state, SIDE, GRID_Y, width - SIDE * 2, GRID_H,
       (key) => this.buy(key))
 
-    this.toasts = new Toasts(this, width / 2, raceY + 128)
-    this.finish = new FinishPopup(this, width / 2, raceY + RACE_H / 2)
+    this.toasts = new Toasts(this, width / 2, TOAST_Y)
+    this.finish = new FinishPopup(this, width / 2, RACE_Y + RACE_H / 2)
 
     this.nav = new BottomNav(this, height - NAV_H, width, (i, tab) => {
       if (i === 0) { this.nav.setActive(0); return }
@@ -86,12 +86,31 @@ export class MainScene extends Phaser.Scene {
     this.refreshUI()
   }
 
-  openClasses() {
-    if (this.modal?.active) return
+  // Единая обвязка открытия окна. Раньше шесть методов повторяли один и тот же
+  // код, и добавить общий шаг (перенос полосы тостов на время окна) означало бы
+  // шесть одинаковых правок — то есть пять шансов забыть.
+  openModal(Modal, { navIndex = null, ...opts } = {}) {
+    if (this.modal?.active) return null
     this.grid.locked = true
-    this.modal = new ClassesModal(this, this.state, {
+    if (navIndex !== null) this.nav.setActive(navIndex)
+    this.toasts.setAnchor(TOAST_MODAL_Y, TOAST_MODAL_STACK)
+    this.modal = new Modal(this, this.state, {
       toast: (text, color) => this.toasts.show(text, color),
-      onClose: () => { this.grid.locked = false; this.modal = null },
+      onChange: () => { this.state.save(); this.refreshUI() },
+      ...opts,
+      onClose: () => {
+        this.grid.locked = false
+        this.modal = null
+        this.toasts.setAnchor(TOAST_Y, TOAST_STACK)
+        if (navIndex !== null) this.nav.setActive(0)
+        opts.onClose?.()
+      },
+    })
+    return this.modal
+  }
+
+  openClasses() {
+    this.openModal(ClassesModal, {
       onLeagues: (id) => this.openLeagues(id),
       onPick: (id) => {
         this.state.activeClass = id
@@ -109,60 +128,11 @@ export class MainScene extends Phaser.Scene {
     })
   }
 
-  openDrivers() {
-    if (this.modal?.active) return
-    this.grid.locked = true
-    this.nav.setActive(2)
-    this.modal = new DriversModal(this, this.state, {
-      toast: (text, color) => this.toasts.show(text, color),
-      onChange: () => { this.state.save(); this.refreshUI() },
-      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
-    })
-  }
-
-  openLeagues(classId) {
-    if (this.modal?.active) return
-    this.grid.locked = true
-    this.nav.setActive(3)
-    this.modal = new LeaguesModal(this, this.state, {
-      classId,
-      toast: (text, color) => this.toasts.show(text, color),
-      onChange: () => { this.state.save(); this.refreshUI() },
-      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
-    })
-  }
-
-  openRewards() {
-    if (this.modal?.active) return
-    this.grid.locked = true
-    this.nav.setActive(4)
-    this.modal = new RewardsModal(this, this.state, {
-      toast: (text, color) => this.toasts.show(text, color),
-      onChange: () => { this.state.save(); this.refreshUI() },
-      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
-    })
-  }
-
-  openShop() {
-    if (this.modal?.active) return
-    this.grid.locked = true
-    this.nav.setActive(5)
-    this.modal = new ShopModal(this, this.state, {
-      toast: (text, color) => this.toasts.show(text, color),
-      onChange: () => { this.state.save(); this.refreshUI() },
-      onClose: () => { this.grid.locked = false; this.modal = null; this.nav.setActive(0) },
-    })
-  }
-
-  openCareer() {
-    if (this.modal?.active) return
-    this.grid.locked = true
-    this.modal = new CareerModal(this, this.state, {
-      toast: (text, color) => this.toasts.show(text, color),
-      onChange: () => { this.state.save(); this.refreshUI() },
-      onClose: () => { this.grid.locked = false; this.modal = null },
-    })
-  }
+  openDrivers() { this.openModal(DriversModal, { navIndex: 2 }) }
+  openLeagues(classId) { this.openModal(LeaguesModal, { navIndex: 3, classId }) }
+  openRewards() { this.openModal(RewardsModal, { navIndex: 4 }) }
+  openShop() { this.openModal(ShopModal, { navIndex: 5 }) }
+  openCareer() { this.openModal(CareerModal) }
 
   onRaceEvent(ev) {
     const color = ev.type === 'lead' ? PAL.red : ev.type === 'lastlap' ? PAL.gold : PAL.accent
@@ -171,10 +141,8 @@ export class MainScene extends Phaser.Scene {
 
   onRaceFinish(res) {
     // Итог заезда — в попап, а не в общий поток тостов: там он тонул среди
-    // сообщений хода гонки. В оригинале это отдельное окно поверх карты.
-    // Но при открытой модалке попап молчит: он лежит на глубине 160, то есть
-    // выше окна, и накрывал бы таблицу лиги каждые 60 секунд. Награды при этом
-    // начисляются как обычно, а таблица обновляется прямо под курсором.
+    // сообщений хода гонки. При открытой модалке попап молчит: он лежит выше
+    // окна и накрывал бы таблицу лиги каждые 60 секунд.
     if (!this.modal?.active) this.finish.show(res, this.state.gemsToday)
     if (res.fans > 0) this.racePanel.popFans(this.state.cls.fans, res.fans)
     if (res.careerLevels > 0) {

@@ -4,11 +4,17 @@ import { SQUAD_SIZE, RARITY_BY_ID } from '../../config/drivers.js'
 import { ratingOf, canMerge, feedXpOf, nameOf } from '../../systems/DriverSystem.js'
 import { formatMoney } from '../../utils/format.js'
 import { label, Button } from '../widgets.js'
+import { fitText } from '../layout.js'
 import { ScrollView } from '../ScrollView.js'
 import { DriverCard, DCARD_H } from './DriverCard.js'
 
 const GAP = 8
-const BAR_H = 44
+// Панель действий: подсказка + ряд кнопок. Было BAR_H=44 при подсказке на +2 и
+// кнопках 32 высотой с центром на +26 (то есть +10..+42) — строка «Tap a
+// reserve driver» лежала прямо на кнопках. Считаем высоту из содержимого.
+const HINT_H = 16
+const BTN_H = 32
+const BAR_H = HINT_H + BTN_H + 6
 
 // Состав + резерв. Выбор двухслотовый: цель (в составе) и кандидат (в резерве),
 // нижняя панель показывает действия для этой пары. Так карточка остаётся одной
@@ -28,18 +34,20 @@ export class SquadView extends Phaser.GameObjects.Container {
     this.targetUid = null
     this.pickUid = null
 
-    this.scroll = new ScrollView(scene, x, y, w, h - BAR_H)
-    this.hint = label(scene, x + w / 2, y + h - BAR_H + 2, '', { size: 10, color: CSS.dim, align: 'center' })
+    const barY = y + h - BAR_H
+    this.scroll = new ScrollView(scene, x, y, w, h - BAR_H - 6, { fade: PAL.panel, fadeH: 22 })
+    this.hint = label(scene, x + w / 2, barY, '', { size: 10, color: CSS.dim, align: 'center' })
     this.add([this.scroll, this.hint])
 
     const bw = (w - 3 * GAP) / 4
     this.actions = ['Add to Squad', 'Feed', '★ Merge', 'Sell'].map((text, i) => {
-      const btn = new Button(scene, x + (bw + GAP) * i + bw / 2, y + h - BAR_H + 26, bw, 32, text,
+      const btn = new Button(scene, x + (bw + GAP) * i + bw / 2, barY + HINT_H + 6 + BTN_H / 2, bw, BTN_H, text,
         { size: 11, fill: i === 3 ? PAL.line : PAL.green })
       btn.on('press', () => this.act(i))
       this.add(btn)
       return btn
     })
+    this.btnMaxW = bw - 8
 
     this.build()
     scene.add.existing(this)
@@ -145,13 +153,16 @@ export class SquadView extends Phaser.GameObjects.Container {
     this.actions[1].setEnabled(!!pick && !!target)
     this.actions[2].setEnabled(!!(pick && target && canMerge(target, pick)))
     this.actions[3].setEnabled(!!pick)
+    // Подпись «Sell $1.24M» длиннее, чем «Sell», и на 78px колонки вылезала
+    // за края кнопки — ужимаем по измеренной ширине.
     this.actions[3].setText(pick
       ? 'Sell ' + formatMoney(this.state.incomePerSec * RARITY_BY_ID[pick.rarity].sellSec)
       : 'Sell')
+    for (const btn of this.actions) fitText(btn.txt.setFontSize(11), this.btnMaxW)
 
-    this.hint.setText(pick
+    fitText(this.hint.setFontSize(10).setText(pick
       ? `${nameOf(pick)} → ${target ? nameOf(target) : '—'}`
-      : 'Tap a reserve driver — actions appear below')
+      : 'Tap a reserve driver — actions appear below'), this.boxW - 8)
   }
 
   destroy(fromScene) {

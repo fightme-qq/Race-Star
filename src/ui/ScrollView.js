@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { fadeStrip } from './layout.js'
 
 // Вертикальный скролл с маской. Вынесен из UpgradeGrid, чтобы список
 // драйверов не заводил вторую копию той же логики.
@@ -7,8 +8,13 @@ import Phaser from 'phaser'
 // pointerdown у кнопок внутри карточек — на этих граблях уже стояли.
 // Обратная сторона: при destroy() слушатели надо снимать руками, иначе
 // закрытая модалка продолжит их держать.
+//
+// `fade` — цвет затухания у нижней кромки. Маска режет содержимое ровно по
+// пикселю, и обрезанная пополам строка («Speedster» в классах, «Ultimate
+// Starter Pack» в магазине) читалась как сломанная вёрстка, а не как «ниже
+// есть ещё». Полоска затухания снимает это и заодно подсказывает про скролл.
 export class ScrollView extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, w, h) {
+  constructor(scene, x, y, w, h, { fade = null, fadeH = 24 } = {}) {
     super(scene, x, y)
     this.viewW = w
     this.viewH = h
@@ -18,6 +24,13 @@ export class ScrollView extends Phaser.GameObjects.Container {
 
     this.inner = scene.add.container(0, 0)
     this.add(this.inner)
+
+    if (fade !== null) {
+      this.fadeG = scene.add.graphics()
+      fadeStrip(this.fadeG, 0, h - fadeH, w, fadeH, fade)
+      this.add(this.fadeG)
+      this.fadeH = fadeH
+    }
 
     const mask = scene.make.graphics({ x: 0, y: 0, add: false })
     mask.fillStyle(0xffffff)
@@ -61,6 +74,9 @@ export class ScrollView extends Phaser.GameObjects.Container {
     const min = Math.min(0, this.viewH - this.contentH)
     this.scrollY = Phaser.Math.Clamp(value, min, 0)
     this.inner.y = this.scrollY
+    // Внизу списка затухать нечему — полоска там только мешала бы читать
+    // последнюю строку.
+    this.fadeG?.setVisible(this.scrollY > min + 1)
   }
 
   clearContent() {

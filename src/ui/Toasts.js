@@ -1,18 +1,48 @@
 import Phaser from 'phaser'
 import { PAL, CSS, FONT } from '../config/palette.js'
+import { DEPTH, TOAST_STACK } from '../config/layout.js'
 
-// [F] Всплывающие плашки поверх трассы: на кадре это БЕЛАЯ плашка с цветным
-// жирным текстом («Prime Chargers takes the lead!» красным), а не цветная
-// плашка с белым текстом. В оригинале они декоративны и с картой не связаны —
-// у нас приходят из реальных событий симуляции.
+// [F] Всплывающие плашки: на кадре это БЕЛАЯ плашка с цветным жирным текстом
+// («Prime Chargers takes the lead!» красным), а не цветная плашка с белым.
+//
+// Место у плашек теперь СВОЁ, а не «поверх карты»: на главном экране это полоса
+// между блоком гонки и сеткой апгрейдов, при открытой модалке — затемнённая
+// шапка. Раньше якорь стоял на raceY+128, то есть ровно на верхней кромке
+// трассы: сообщение закрывало точки участников, а на кадре карьеры ложилось
+// поперёк первой карточки навыка.
 export class Toasts extends Phaser.GameObjects.Container {
   constructor(scene, x, y) {
     super(scene, x, y)
-    this.queue = []
+    this.baseY = y
+    this.stackLimit = TOAST_STACK
     scene.add.existing(this)
-    // Выше модалок (у них 100): плашки — единственный отклик на действия
-    // внутри них. На глубине 50 сообщение «Класс открыт!» уходило под окно.
-    this.setDepth(150)
+    this.setDepth(DEPTH.toast)
+  }
+
+  // Переезд полосы. Уже висящие плашки едут вместе с ней, иначе при открытии
+  // окна старое сообщение осталось бы висеть внутри него. `limit` едет вместе
+  // с якорем: сколько плашек можно показать, зависит от того, сколько свободного
+  // места есть НАД полосой в этом положении.
+  setAnchor(y, limit = TOAST_STACK) {
+    this.stackLimit = limit
+    this.trim()
+    if (this.baseY === y) return
+    this.baseY = y
+    this.scene.tweens.killTweensOf(this)
+    this.scene.tweens.add({ targets: this, y, duration: 160, ease: 'Quad.easeOut' })
+  }
+
+  // Самые старые плашки убираем сразу: без лимита стопка росла бесконечно и
+  // верхние уезжали в чужой блок — ровно то наложение, ради которого полосу и
+  // заводили.
+  trim() {
+    while (this.list.length > this.stackLimit) {
+      const oldest = this.list[0]
+      // Твины гасим ДО destroy: у плашки их два (появление и уход), и
+      // onComplete второго дёрнул бы destroy повторно.
+      this.scene.tweens.killTweensOf(oldest)
+      oldest.destroy()
+    }
   }
 
   show(text, color = PAL.accent) {
@@ -26,10 +56,13 @@ export class Toasts extends Phaser.GameObjects.Container {
     }).setOrigin(0.5, 0.5)
 
     this.add(t)
-    // Сдвигаем уже висящие плашки вниз, новая появляется сверху.
+    // Стопка растёт ВВЕРХ: новая плашка встаёт на полосу, старые поднимаются.
+    // Раньше старые уезжали ВНИЗ (+28) — то есть прямо в сетку апгрейдов под
+    // полосой и в содержимое открытого окна.
     for (const other of this.list) {
-      if (other !== t) other.y += 28
+      if (other !== t) other.y -= 28
     }
+    this.trim()
     this.scene.tweens.add({
       targets: t,
       alpha: { from: 0, to: 1 },

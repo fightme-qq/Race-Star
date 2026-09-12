@@ -38,7 +38,7 @@ export class LeaguesModal extends Phaser.GameObjects.Container {
     x.on('press', () => this.close())
     this.add([dim, sheet, title, x])
 
-    this.scroll = new ScrollView(scene, bx + 6, by + 60, bw - 12, bh - 72)
+    this.scroll = new ScrollView(scene, bx + 6, by + 60, bw - 12, bh - 72, { fade: PAL.bg })
     const cw = bw - 24
 
     const id = this.classId

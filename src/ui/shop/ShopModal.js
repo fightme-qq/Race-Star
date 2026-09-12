@@ -51,7 +51,7 @@ export class ShopModal extends Phaser.GameObjects.Container {
       return btn
     })
 
-    this.scroll = new ScrollView(scene, bx + 6, by + 90, bw - 12, bh - 102)
+    this.scroll = new ScrollView(scene, bx + 6, by + 90, bw - 12, bh - 102, { fade: PAL.bg })
     this.add(this.scroll)
 
     this.setTab(0)
