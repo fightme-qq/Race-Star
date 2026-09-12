@@ -9,11 +9,12 @@ const COLS = 2
 // Сетка апгрейдов 2xN со скроллом. Покупка идёт прямо во время гонки —
 // это единственное действие игрока в оригинале.
 export class UpgradeGrid {
-  constructor(scene, state, x, y, w, h, onBuy) {
+  constructor(scene, state, x, y, w, h, onBuy, onInfo) {
     this.scene_ = scene
     this.state = state
     this.viewW = w
     this.onBuy = onBuy
+    this.onInfo = onInfo
     // Затухание цветом фона экрана ровно по выглядывающему ряду: он гаснет,
     // а не обрывается срезом. Высота полосы равна высоте «выглядывания» —
     // тогда она никогда не залезает на полностью видимую карточку.
@@ -38,7 +39,8 @@ export class UpgradeGrid {
         this.scene_, this.state, def,
         offsetX + col * (CARD_W + GAP),
         row * (CARD_H + GAP),
-        this.onBuy
+        this.onBuy,
+        this.onInfo
       )
       this.view.inner.add(card)
       this.cards.push(card)

@@ -111,6 +111,92 @@ await step('главный экран', async () => page.evaluate(() => {
   }
 }))
 
+// 1a. Карточка апгрейда ТАПАМИ. Шаг 1 покупает через `s.buy()` и потому не
+// видит входного слоя вовсе: ⓘ на карточке был нарисован `label`-ом без
+// setInteractive и молчал на тап, а шаг 1 держался зелёным. Проверяем обе
+// цели карточки: кнопку `Upgrade` и ⓘ.
+await step('карточка апгрейда тапами', async () => {
+  await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    m.state.addCash(1e6)
+    m.grid.view.setScroll(0)
+    m.refreshUI()
+  })
+  const before = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    const c = m.grid.cards[0]
+    const b = c.buyBtn.getBounds()
+    const z = c.infoBtn.getBounds()
+    return {
+      key: c.def.key, level: m.state.levelOf(c.def.key),
+      buy: { x: b.centerX, y: b.centerY }, info: { x: z.centerX, y: z.centerY },
+    }
+  })
+  await tap(before.buy.x, before.buy.y)
+  const bought = await page.evaluate((k) =>
+    window.__game.scene.getScene('Main').state.levelOf(k), before.key)
+
+  await tap(before.info.x, before.info.y)
+  const opened = await page.evaluate(() => {
+    const p = window.__game.scene.getScene('Main').info
+    return { open: p.isOpen, rows: p.content.list.length }
+  })
+  // Закрываем тапом МИМО окна: тот самый путь, на котором справка закрывалась
+  // бы в кадре своего появления, не будь взведения (armed) в InfoPopup.
+  await tap(195, 60)
+  const closed = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    return { open: m.info.isOpen, locked: m.grid.locked }
+  })
+
+  // Протяжка ОТ значка ⓘ — это скролл списка, а не тап: без порога сдвига
+  // справка вылезала бы на каждом свайпе по правому краю карточки.
+  await page.mouse.move(before.info.x, before.info.y)
+  await page.mouse.down()
+  await page.mouse.move(before.info.x, before.info.y - 60, { steps: 6 })
+  await page.mouse.up()
+  await wait(250)
+  const dragged = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    const scrolled = m.grid.view.scrollY
+    m.grid.view.setScroll(0)
+    return { open: m.info.isOpen, scrolled }
+  })
+
+  return {
+    ok: bought === before.level + 1 && opened.open && opened.rows > 8
+      && !closed.open && !closed.locked
+      && !dragged.open && dragged.scrolled < -10,
+    level: bought, rows: opened.rows, scrolled: Math.round(dragged.scrolled),
+  }
+})
+
+// 1b. Маска режет картинку, но не ввод: уехавшая под кромку кнопка оставалась
+// нажимаемой, и тап по ТРАССЕ покупал апгрейд из невидимого ряда.
+await step('невидимый ряд не нажимается', async () => {
+  const probe = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    m.state.addCash(1e9)
+    m.grid.view.setScroll(-200)
+    m.refreshUI()
+    const b = m.grid.cards[0].buyBtn.getBounds()
+    return {
+      key: m.grid.cards[0].def.key, level: m.state.levelOf(m.grid.cards[0].def.key),
+      x: b.centerX, y: b.centerY, gridTop: m.grid.view.y,
+    }
+  })
+  await tap(probe.x, probe.y)
+  const after = await page.evaluate((k) => {
+    const m = window.__game.scene.getScene('Main')
+    m.grid.view.setScroll(0)
+    return m.state.levelOf(k)
+  }, probe.key)
+  return {
+    ok: probe.y < probe.gridTop && after === probe.level,
+    y: Math.round(probe.y), gridTop: probe.gridTop, level: after,
+  }
+})
+
 // 2. Классы: CLASSES в шапке -> покупка класса -> переход в него.
 // Карточки в списке разной высоты, и раскладка пересчитывается на каждом
 // refresh — тап по кнопке после покупки обязан попадать туда, куда смотрит.
@@ -386,6 +472,10 @@ await step('гараж', async () => {
     return { car: car?.id ?? null, level: s.garage.cars[car?.id]?.level ?? 0, power: Math.round(s.teamPower) }
   })
   await tapButton('Upgrade')
+  // `opened` передаётся ВНУТРЬ, а не читается из замыкания: page.evaluate
+  // исполняется в браузере, замыкание туда не уезжает. Без этого `ctx.opened`
+  // был undefined, `ok` не попадал в JSON и шаг падал при работающем гараже —
+  // машина при этом честно апгрейдилась (level 0 -> 1, power 391 -> 393).
   return page.evaluate((ctx) => {
     const main = window.__game.scene.getScene('Main')
     const s = main.state
@@ -394,7 +484,7 @@ await step('гараж', async () => {
       && Math.round(s.teamPower) > ctx.power
     main.modal.close()
     return { ok, car: ctx.car, level, power: Math.round(s.teamPower), was: ctx }
-  }, before)
+  }, { ...before, opened })
 })
 
 // 7f. Арена: матч тратит тикет и даёт медали (шаг 8).

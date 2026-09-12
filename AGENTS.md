@@ -407,6 +407,7 @@ npx vite build                 # синтаксис и импорты
 npx vite --port 3111 &         # затем:
 npm run smoke                  # headless Chrome: тапы по живому UI
 npm run shot [main|career|drivers|classes]   # скриншот: наложения smoke не видит
+npm run shot:info              # справка по ⓘ на четырёх видах слотов, тапами
 npm run diff [экран|all]       # наш экран и кадр оригинала бок о бок
 npm run sim                    # баланс на 700 игровых часов
 npm run sim:why                # почему политики не различаются (набор, эластичность)

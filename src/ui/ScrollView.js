@@ -77,6 +77,31 @@ export class ScrollView extends Phaser.GameObjects.Container {
     // Внизу списка затухать нечему — полоска там только мешала бы читать
     // последнюю строку.
     this.fadeG?.setVisible(this.scrollY > min + 1)
+    this.clipInput()
+  }
+
+  // Маска режет ТОЛЬКО картинку. Phaser проверяет попадания по hit-area и о
+  // масках ничего не знает: кнопка, уехавшая под кромку списка, остаётся
+  // нажимаемой в своём невидимом месте. На главном экране первый ряд после
+  // прокрутки оказывается ровно над трассой, и тап по трассе покупал апгрейд
+  // вслепую — шаг «невидимый ряд не нажимается» в tools/smoke.mjs.
+  //
+  // Отключаем не рисование, а ВВОД: скрывать объект нельзя, он обязан быть
+  // виден в той части, что попадает под маску.
+  clipInput() {
+    const top = this.y
+    const bottom = this.y + this.viewH
+    const walk = (obj) => {
+      // Центр, а не пересечение: у наполовину вылезшей кнопки видна та
+      // половина, в которую и целятся, — по пересечению она осталась бы
+      // нажимаемой целиком, включая срезанную часть.
+      if (obj.input && obj.getBounds) {
+        const cy = obj.getBounds().centerY
+        obj.input.enabled = cy >= top && cy <= bottom
+      }
+      for (const child of obj.list ?? []) walk(child)
+    }
+    walk(this.inner)
   }
 
   clearContent() {

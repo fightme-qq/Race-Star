@@ -8,6 +8,8 @@ import { UpgradeGrid } from '../ui/UpgradeGrid.js'
 import { BottomNav } from '../ui/BottomNav.js'
 import { Toasts } from '../ui/Toasts.js'
 import { FinishPopup } from '../ui/FinishPopup.js'
+import { InfoPopup } from '../ui/InfoPopup.js'
+import { upgradeInfo } from '../ui/upgradeText.js'
 import { ClassesModal } from '../ui/ClassesModal.js'
 import { DriversModal } from '../ui/drivers/DriversModal.js'
 import { CareerModal } from '../ui/career/CareerModal.js'
@@ -41,10 +43,14 @@ export class MainScene extends Phaser.Scene {
 
     this.racePanel = new RacePanel(this, this.state, SIDE, RACE_Y, width - SIDE * 2, RACE_H)
     this.grid = new UpgradeGrid(this, this.state, SIDE, GRID_Y, width - SIDE * 2, GRID_H,
-      (key) => this.buy(key))
+      (key) => this.buy(key), (def) => this.openInfo(def))
 
     this.toasts = new Toasts(this, width / 2, TOAST_Y)
     this.finish = new FinishPopup(this, width / 2, RACE_Y + RACE_H / 2)
+    // Справка по ⓘ. Список под ней запираем: слушатели скролла висят на
+    // scene.input, затемнение их не перехватывает, и список ездил бы под
+    // открытым окном.
+    this.info = new InfoPopup(this, () => { this.grid.locked = !!this.modal?.active })
 
     this.nav = new BottomNav(this, height - NAV_H, width, (i, tab) => {
       if (i === 0) { this.nav.setActive(0); return }
@@ -81,6 +87,11 @@ export class MainScene extends Phaser.Scene {
     if (!this.state.buy(key)) return
     this.refreshUI()
     this.grid.refresh()
+  }
+
+  openInfo(def) {
+    this.grid.locked = true
+    this.info.show(upgradeInfo(def, this.state))
   }
 
   activateBoost() {

@@ -43,6 +43,27 @@ export function dimmer(scene, width, height, onClose) {
   return rect
 }
 
+// Тап-цель без своей графики. Нужна там, где значок нарисован мелко и по
+// макету крупнее быть не может: ⓘ на карточке апгрейда — глиф 13px, а пальцем
+// в 13px не попасть. Зона 34x34 вокруг значка решает это, не меняя картинку.
+//
+// Логика та же, что у Button: срабатываем на ОТПУСКАНИИ и только если палец не
+// уехал, иначе протяжка списка апгрейдов открывала бы справку на каждом свайпе.
+export function tapZone(scene, x, y, w, h, onTap) {
+  const z = scene.add.zone(x, y, w, h)
+  z.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains)
+  let downAt = null
+  z.on('pointerdown', (p) => { downAt = { x: p.x, y: p.y } })
+  z.on('pointerout', () => { downAt = null })
+  z.on('pointerup', (p) => {
+    if (!downAt) return
+    const moved = Phaser.Math.Distance.Between(downAt.x, downAt.y, p.x, p.y)
+    downAt = null
+    if (moved <= 12) onTap()
+  })
+  return z
+}
+
 // Кнопка-плашка с закруглением. onClick вызывается только если enabled.
 // `chip` — вложенный ценник справа, как в оригинале: `[ Upgrade    $25 ]`.
 export class Button extends Phaser.GameObjects.Container {

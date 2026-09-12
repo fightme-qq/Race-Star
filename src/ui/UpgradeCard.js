@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../config/palette.js'
 import { formatMoney, formatGain } from '../utils/format.js'
-import { label, Button } from './widgets.js'
+import { label, Button, tapZone } from './widgets.js'
 import { fitText, fitWrapped, vcenter } from './layout.js'
 import { CARD } from '../config/layout.js'
 import { upgradeEffect, isUpgradeLocked } from '../systems/UpgradeSystem.js'
@@ -31,7 +31,7 @@ const NAME_X = L.pad + L.iconS + 8              // 60
 const INFO_W = 20
 
 export class UpgradeCard extends Phaser.GameObjects.Container {
-  constructor(scene, state, def, x, y, onBuy) {
+  constructor(scene, state, def, x, y, onBuy, onInfo) {
     super(scene, x, y)
     this.state = state
     this.def = def
@@ -49,6 +49,12 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
     fitWrapped(this.nameText, this.nameMaxW, L.nameH, 10)
 
     this.infoDot = label(scene, CARD_W - L.pad, L.nameY, 'ⓘ', { size: 13, color: CSS.dim, align: 'right' })
+    // ⓘ был НАРИСОВАН, но не нажимался: `label` — обычный текст без
+    // setInteractive, и единственная подсказка на карточке молчала на тап.
+    // Своя зона 34x34 вокруг значка, потому что 13px — не тап-цель; в
+    // кнопку `Upgrade` (y 102..136) она не заходит, значит ничего не крадёт.
+    this.infoBtn = tapZone(scene, CARD_W - L.pad - 7, L.nameY + 7, 34, 34,
+      () => onInfo?.(this.def))
 
     this.lvlText = label(scene, NAME_X + L.chipW / 2, L.chipY, '', { size: 10, color: CSS.muted, align: 'center' })
 
@@ -61,7 +67,7 @@ export class UpgradeCard extends Phaser.GameObjects.Container {
       { size: 13, chip: true })
     this.buyBtn.on('press', () => onBuy(def.key))
 
-    this.add([this.bg, this.icon, this.nameText, this.infoDot, this.lvlText,
+    this.add([this.bg, this.icon, this.nameText, this.infoDot, this.infoBtn, this.lvlText,
       this.curText, this.arrow, this.nextText, this.buyBtn])
     this.drawFrame()
     scene.add.existing(this)
