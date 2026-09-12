@@ -18,6 +18,10 @@ import { RewardsModal } from '../ui/rewards/RewardsModal.js'
 import { ShopModal } from '../ui/shop/ShopModal.js'
 import { GearModal } from '../ui/gear/GearModal.js'
 import { GarageModal } from '../ui/garage/GarageModal.js'
+import { ObjectiveBar } from '../ui/ObjectiveBar.js'
+import { TutorialView } from '../ui/tutorial/TutorialView.js'
+import { introInfo } from '../ui/tutorial/introInfo.js'
+import { TAB_GATES, tabUnlocked } from '../config/tutorial.js'
 import { formatMoney } from '../utils/format.js'
 import {
   NAV_H, RACE_Y, RACE_H, GRID_Y, GRID_H, SIDE,
@@ -52,7 +56,17 @@ export class MainScene extends Phaser.Scene {
     // открытым окном.
     this.info = new InfoPopup(this, () => { this.grid.locked = !!this.modal?.active })
 
+    this.objective = new ObjectiveBar(this, this.state)
+
     this.nav = new BottomNav(this, height - NAV_H, width, (i, tab) => {
+      // Ворота проверяются ЗДЕСЬ, а не в open*: те же методы дёргает стенд
+      // скриншотов и smoke напрямую, и запирать их значило бы запирать
+      // проверку экранов вместе с игроком.
+      if (!tabUnlocked(this.state, i)) {
+        const left = TAB_GATES[i].races - this.state.cls.races
+        this.toasts.show(`${tab.title} unlocks in ${left} race${left === 1 ? '' : 's'}`, PAL.muted)
+        return
+      }
       if (i === 0) { this.nav.setActive(0); return }
       if (i === 1) { this.openGear(); return }
       if (i === 2) { this.openDrivers(); return }
@@ -76,6 +90,10 @@ export class MainScene extends Phaser.Scene {
       )
     }
 
+    // Обучение — последним: оно целится в уже собранные шапку, панель гонки,
+    // первую карточку сетки и строку цели.
+    this.tutorial = new TutorialView(this, this.state)
+
     this.uiTimer = 0
     this.refreshUI()
     this.time.addEvent({ delay: 10000, loop: true, callback: () => this.state.save() })
@@ -87,6 +105,7 @@ export class MainScene extends Phaser.Scene {
     if (!this.state.buy(key)) return
     this.refreshUI()
     this.grid.refresh()
+    this.tutorial?.onAction('buy')
   }
 
   openInfo(def) {
@@ -103,7 +122,7 @@ export class MainScene extends Phaser.Scene {
   // Единая обвязка открытия окна. Раньше шесть методов повторяли один и тот же
   // код, и добавить общий шаг (перенос полосы тостов на время окна) означало бы
   // шесть одинаковых правок — то есть пять шансов забыть.
-  openModal(Modal, { navIndex = null, ...opts } = {}) {
+  openModal(Modal, { navIndex = null, intro = null, ...opts } = {}) {
     if (this.modal?.active) return null
     this.grid.locked = true
     if (navIndex !== null) this.nav.setActive(navIndex)
@@ -120,11 +139,20 @@ export class MainScene extends Phaser.Scene {
         opts.onClose?.()
       },
     })
+    // Справка о самом экране — один раз за игру, поверх только что открытого
+    // окна. Именно поверх, а не вместо: игрок должен видеть, о чём речь.
+    // Обучение кончается на первой минуте, а вкладки открываются на первом
+    // часу — без этого каждая новая вкладка снова «непонятно, что тут».
+    if (intro && this.state.tutorial.markIntro(intro)) {
+      this.state.save()
+      this.info.show(introInfo(intro))
+    }
     return this.modal
   }
 
   openClasses() {
     this.openModal(ClassesModal, {
+      intro: 'classes',
       onLeagues: (id) => this.openLeagues(id),
       onPick: (id) => {
         this.state.activeClass = id
@@ -147,6 +175,7 @@ export class MainScene extends Phaser.Scene {
   openGear() {
     this.openModal(GearModal, {
       navIndex: 1,
+      intro: 'gear',
       onGarage: () => {
         this.modal?.close()
         this.openGarage()
@@ -156,11 +185,16 @@ export class MainScene extends Phaser.Scene {
 
   openGarage() { this.openModal(GarageModal, { navIndex: 1 }) }
 
-  openDrivers() { this.openModal(DriversModal, { navIndex: 2 }) }
-  openLeagues(classId) { this.openModal(LeaguesModal, { navIndex: 3, classId }) }
-  openRewards() { this.openModal(RewardsModal, { navIndex: 4 }) }
-  openShop() { this.openModal(ShopModal, { navIndex: 5 }) }
-  openCareer() { this.openModal(CareerModal) }
+  // Отметка `seen` закрывает цель «загляни в драйверов»: у неё нет счётчика,
+  // который рос бы сам, — единственное её условие в том, что игрок там был.
+  openDrivers() {
+    this.state.tutorial.markSeen('drivers')
+    this.openModal(DriversModal, { navIndex: 2, intro: 'drivers' })
+  }
+  openLeagues(classId) { this.openModal(LeaguesModal, { navIndex: 3, classId, intro: 'leagues' }) }
+  openRewards() { this.openModal(RewardsModal, { navIndex: 4, intro: 'rewards' }) }
+  openShop() { this.openModal(ShopModal, { navIndex: 5, intro: 'shop' }) }
+  openCareer() { this.openModal(CareerModal, { intro: 'career' }) }
 
   onRaceEvent(ev) {
     const color = ev.type === 'lead' ? PAL.red : ev.type === 'lastlap' ? PAL.gold : PAL.accent
@@ -190,6 +224,10 @@ export class MainScene extends Phaser.Scene {
     this.topBar.refresh()
     this.racePanel.refresh(this.race?.sim)
     this.grid.refresh()
+    this.objective.refresh()
+    // Замки снимаются по ходу игры (ворота считаются от пробега класса),
+    // поэтому проверяются здесь, а не один раз при сборке экрана.
+    for (const i of Object.keys(TAB_GATES)) this.nav.setLocked(+i, !tabUnlocked(this.state, +i))
     this.nav.setDot(4, this.state.rewardsPending > 0)
     this.nav.setDot(5, this.state.shopPending > 0)
   }
@@ -211,6 +249,8 @@ export class MainScene extends Phaser.Scene {
       this.uiTimer = 0
       this.topBar.refresh()
       this.grid.refresh()
+      this.objective.refresh()
+      this.tutorial.update()
       this.modal?.active && this.modal.refresh()
     }
   }

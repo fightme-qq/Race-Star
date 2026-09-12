@@ -85,7 +85,9 @@ export class InfoPopup extends Phaser.GameObjects.Container {
       texts.push(label(s, PAD + 10, ry + 4, name, { size: 11.5, color: CSS.muted }))
       texts.push(label(s, W - PAD - 10, ry + 3, value, { size: 12.5, bold: true, align: 'right' }))
     })
-    const plateH = info.rows.length * ROW_H + 10
+    // Без строк плашки нет вовсе. Иначе справка по ЭКРАНУ (у неё чисел нет)
+    // рисовала бы пустую серую полосу в 10 пикселей под текстом.
+    const plateH = info.rows.length ? info.rows.length * ROW_H + 10 : 0
     y = plateY + plateH
 
     // Причина замка — отдельной строкой под числами: на кнопке написано
@@ -111,7 +113,7 @@ export class InfoPopup extends Phaser.GameObjects.Container {
     g.strokeRoundedRect(0, 0, W, H, 16)
     g.fillStyle(PAL.panelAlt, 1)
     g.fillRoundedRect(PAD, PAD, ICON, ICON, 11)
-    g.fillRoundedRect(PAD, plateY, W - PAD * 2, plateH, 10)
+    if (plateH) g.fillRoundedRect(PAD, plateY, W - PAD * 2, plateH, 10)
     g.fillStyle(info.color, 0.14)
     g.fillRoundedRect(titleX, badge.y - 3, badgeW, badge.height + 6, 5)
     // Боевые слоты рисуются вектором тем же кодом, что на карточке: иначе
@@ -121,8 +123,10 @@ export class InfoPopup extends Phaser.GameObjects.Container {
     this.content.add([title, badge, body, note, ...texts, btn])
     if (lock) this.content.add(lock)
     if (!drawn) {
-      this.content.add(label(s, PAD + ICON / 2, PAD + ICON / 2 - 12, EMOJI[info.key] || '⚙',
-        { size: 20, align: 'center' }))
+      // `info.emoji` — для окон, у которых нет слота вовсе (справка по экрану
+      // при первом входе): значок берётся из описания, а не из таблицы слотов.
+      this.content.add(label(s, PAD + ICON / 2, PAD + ICON / 2 - 12,
+        EMOJI[info.key] || info.emoji || '⚙', { size: 20, align: 'center' }))
     }
 
     const { width, height } = s.scale

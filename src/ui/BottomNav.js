@@ -37,22 +37,44 @@ export class BottomNav extends Phaser.GameObjects.Container {
       const icon = scene.add.text(cx, cy, tab.icon, { fontFamily: FONT, fontSize: '24px' }).setOrigin(0.5)
       icon.setAlpha(i === 0 ? 1 : 0.5)
       const dot = scene.add.circle(cx + 17, cy - 16, 5, PAL.red).setVisible(DOTS[i])
+      // Замок поверх иконки закрытой вкладки. Именно значок, а не просто
+      // блёклая иконка: блёклая читается как «неактивна сейчас», и игрок жмёт
+      // её снова и снова, не понимая, почему ничего не происходит.
+      const lock = scene.add.text(cx + 1, cy + 2, '🔒', { fontFamily: FONT, fontSize: '15px' })
+        .setOrigin(0.5).setVisible(false)
       const zone = scene.add.zone(cx, cy, width / TABS.length, NAV_H - 6).setInteractive()
       zone.on('pointerdown', () => onSelect(i, tab))
-      return { glow, icon, zone, dot }
+      return { glow, icon, zone, dot, lock }
     })
     scene.add.existing(this)
   }
 
+  // Ворота вкладок. Шесть вкладок сразу на чистом старте — это двадцать пять
+  // экранов, ни один из которых не объясняет, зачем он: главная причина, по
+  // которой игра читается как «непонятно, что делать». Открываем по одной.
+  setLocked(index, on) {
+    const it = this.items[index]
+    if (!it) return
+    it.lock.setVisible(on)
+    it.icon.setAlpha(on ? 0.22 : (this.active === index ? 1 : 0.5))
+    if (on) it.dot.setVisible(false)
+  }
+
   // Точка на вкладке наград не декоративная: она гаснет, когда забирать
   // нечего. Остальные остаются как на кадре [F] — ими пока нечем управлять.
-  setDot(index, on) { this.items[index]?.dot.setVisible(on) }
+  setDot(index, on) {
+    const it = this.items[index]
+    // На закрытой вкладке точка — приглашение нажать туда, где нельзя.
+    it?.dot.setVisible(on && !it.lock.visible)
+  }
 
   setActive(index) {
     this.active = index
     this.items.forEach((it, i) => {
       it.glow.setVisible(i === index)
-      it.icon.setAlpha(i === index ? 1 : 0.5)
+      // Замок сильнее подсветки активной: иначе setActive возвращал бы полную
+      // непрозрачность иконке, которую мы только что пригасили воротами.
+      it.icon.setAlpha(it.lock.visible ? 0.22 : i === index ? 1 : 0.5)
     })
   }
 }

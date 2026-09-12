@@ -30,7 +30,12 @@ export class RacePanel extends Phaser.GameObjects.Container {
     this.fansText = label(scene, x + PAD, y + 36, '', { size: 15, bold: true, color: CSS.onDark })
 
     // Сила команды на главном экране — иначе прокачка драйверов не даёт
-    // никакой обратной связи. Подсвечивается ТА сторона, что решает заезд:
+    // никакой обратной связи. Подписи БУКВАМИ, а не значками ⚔/🛡: оба —
+    // эмодзи с текстовым начертанием по умолчанию, и без селектора U+FE0F
+    // Chrome рисует их как `×` и `♡`, то есть «× 152 ♡ 152». С селектором
+    // щит появляется, а мечи в 11px всё равно читаются крестиком. Здесь строка
+    // наша [X] (её нет ни на одном кадре), поэтому можно просто написать
+    // словами — в окнах гира и карьеры значки остаются, там есть контекст. Подсвечивается ТА сторона, что решает заезд:
     // без подсветки деление апгрейдов на атаку и защиту неотличимо от косметики.
     // Координаты ряда считаются потоком в refresh(): при «⚔ 1.2M» жёсткие
     // x=26/82/138 склеивали числа с меткой ATTACK.
@@ -79,8 +84,8 @@ export class RacePanel extends Phaser.GameObjects.Container {
     const s = this.state
     fitText(this.teamText.setFontSize(18).setText(s.teamName), this.leftW)
     fitText(this.fansText.setFontSize(15).setText('👥 ' + formatNum(s.cls.fans)), this.leftW)
-    this.offText.setText(`⚔ ${formatNum(s.offense)}`)
-    this.defText.setText(`🛡 ${formatNum(s.defense)}`)
+    this.offText.setText(`ATK ${formatNum(s.offense)}`)
+    this.defText.setText(`DEF ${formatNum(s.defense)}`)
 
     if (sim) {
       // Какой стороной решается заезд — разыграно на старте, всю гонку не меняется.

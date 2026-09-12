@@ -9,6 +9,7 @@ import {
   freshStandings, standingsRows, playerRank, promotionTarget, archiveSeason,
 } from './SeasonSystem.js'
 import { SaveSystem } from './SaveSystem.js'
+import { Tutorial } from './TutorialSystem.js'
 import { formatMoney } from '../utils/format.js'
 import {
   freshCareer, careerEffects, careerStats, addCareerXp,
@@ -134,6 +135,9 @@ export class GameState {
     // Доборы шага 9: аутфиты, ядра, Lucky Draw, коды, косметика + коллекции.
     this.extras = { ...freshExtras(), ...(saved?.extras ?? {}) }
     this.collection = { ...freshCollection(), ...(saved?.collection ?? {}) }
+    // Обучение создаётся ПОСЛЕДНИМ: его строка цели читает класс, лигу и
+    // ростер, то есть всё, что собрано выше.
+    this.tutorial = new Tutorial(this, saved?.tutorial)
     this.lastSeen = saved?.lastSeen ?? Date.now()
   }
 
@@ -1144,6 +1148,7 @@ export class GameState {
       // откате (предмет надет на машину, которой в сейве нет).
       garage: { ...this.garage, parts: this.parts.toJSON() },
       compete: this.compete, extras: this.extras, collection: this.collection,
+      tutorial: this.tutorial.toJSON(),
       lastSeen: Date.now(),
     })
   }

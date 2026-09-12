@@ -12,6 +12,16 @@ export const SCREENS = {
   // На кадре оригинала апгрейды нулевого уровня, но денег 219M и кнопки
   // активны — иначе сверяется цвет «нельзя купить», которого на кадре нет.
   main: { open: null, cash: 1e6 },
+  // Обучение. Снимаем ТРИ шага, а не один: карточка сама выбирает, встать ей
+  // выше или ниже подсветки, и наложение возможно только на конкретной цели —
+  // приветствие без цели, статы у верхней кромки, карточка апгрейда у нижней.
+  tutorial: { open: null, tutorial: 1 },
+  tutorialStats: { open: null, tutorial: 3 },
+  tutorialBuy: { open: null, cash: 1e6, tutorial: 4 },
+  // Разовая справка при первом входе в экран: текст в ней самый длинный из
+  // всех, что видело это окно, и обрезка проверяется только кадром.
+  introLeagues: { open: 'openLeagues', cash: 1e6, races: 14, intro: true },
+  introGear: { open: 'openGear', cash: 1e6, races: 30, draw: 20, intro: true },
   career: { open: 'openCareer', cash: 1e6 },
   drivers: { open: 'openDrivers', cash: 1e6 },
   classes: { open: 'openClasses', cash: 1e6 },
@@ -92,6 +102,21 @@ export async function goto(page, screen) {
   if (!cfg) throw new Error(`нет экрана «${screen}», есть: ${Object.keys(SCREENS).join(', ')}`)
   await page.evaluate((c) => {
     const main = window.__game.scene.getScene('Main')
+    // Обучение перекрывает СВОЕЙ карточкой любой экран, и ворота вкладок
+    // прячут половину меню. Для всех кадров, кроме кадров самого обучения, оно
+    // пройдено: иначе каждый второй скриншот — это скриншот туториала.
+    if (c.tutorial) {
+      main.state.tutorial.done = false
+      main.state.tutorial.step = c.tutorial - 1
+    } else {
+      main.state.tutorial.finish()
+      main.state.tutorial.navUnlocked = true
+      // Разовая справка «что это за экран» показывается поверх окна при первом
+      // входе — а стенд входит в каждое окно первый раз всегда. Без этой
+      // отметки кадром любой вкладки был бы кадр справки.
+      if (!c.intro) main.state.tutorial.seen.__all = true
+    }
+    main.tutorial.sync()
     // Пустой экран не показывает ни одной активной кнопки, а проверять надо
     // живое состояние — поэтому ресурсы выдаём щедро.
     main.state.gainCareerXp(9000)
@@ -162,6 +187,10 @@ export async function goto(page, screen) {
       for (let i = 0; i < 3; i++) main.state.roster.create('pro')
       main.state.grant({ kind: 'cores', amount: 6 })
     }
+    // Полный refreshUI, а не тот частичный, что идёт каждые 200 мс из update:
+    // замки вкладок и строка цели пересчитываются только в нём, и без этого
+    // вызова кадр показывает состояние ДО всех настроек выше.
+    main.refreshUI()
     if (c.open) main[c.open]()
     if (c.tab != null) main.modal?.setTab?.(c.tab)
   }, cfg)

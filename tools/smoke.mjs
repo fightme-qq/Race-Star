@@ -96,6 +96,93 @@ const step = async (name, fn) => {
   catch (e) { steps.push({ name, ok: false, why: e.message }) }
 }
 
+// 0. Обучение и ворота вкладок. Идёт ПЕРВЫМ и тапами: на чистом старте карточка
+// обучения лежит выше всего экрана, и если её нельзя пролистать, то все
+// остальные шаги проверяют игру, в которую игрок не может попасть.
+await step('обучение и ворота', async () => {
+  const start = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    return { active: m.tutorial.active, step: m.state.tutorial.step, card: m.tutorial.card.visible }
+  })
+
+  // Закрытая вкладка не открывает окно. Ворота считаются от пробега класса, а
+  // он на старте нулевой — то есть заперты все пять.
+  const navLocked = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    return m.nav.items[3].lock.visible
+  })
+  await tapObj('nav.items.3.zone')
+  const stillClosed = await page.evaluate(() =>
+    !window.__game.scene.getScene('Main').modal?.active)
+
+  // Листаем до шага, который ЖДЁТ покупки (индекс 3 в STEPS).
+  for (let i = 0; i < 3; i++) await tapObj('tutorial.card.nextBtn')
+  const atBuy = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    return { step: m.state.tutorial.step, await: !!m.state.tutorial.current?.await, next: m.tutorial.card.nextBtn.visible }
+  })
+
+  // Покупка закрывает шаг сама — «Next» под ним нет по построению.
+  await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    m.state.addCash(1e5)
+    m.grid.view.setScroll(0)
+    m.refreshUI()
+  })
+  await tapObj('grid.cards.0.buyBtn')
+  const advanced = await page.evaluate(() =>
+    window.__game.scene.getScene('Main').state.tutorial.step)
+
+  // Выход по Skip и снятие ворот: дальше smoke проверяет игру целиком, а она
+  // вся за воротами.
+  await tapObj('tutorial.card.skipBtn')
+  const after = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    const done = m.state.tutorial.done && !m.tutorial.card.visible
+    m.state.tutorial.navUnlocked = true
+    m.refreshUI()
+    return { done, unlocked: !m.nav.items[3].lock.visible }
+  })
+
+  // Разовая справка при ПЕРВОМ входе в экран — та же проверка тапами: она
+  // ложится поверх только что открытого окна, и если её нельзя закрыть, то
+  // вкладка заперта ею навсегда.
+  await tapObj('nav.items.3.zone')
+  const intro = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    return { shown: m.info.isOpen, modal: !!m.modal?.active }
+  })
+  // Кнопку справки ищем в СЦЕНЕ, а не в окне: `findButton` обходит
+  // `scene.modal ?? scene`, а InfoPopup живёт рядом с модалкой, не внутри неё.
+  const gotIt = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    const btn = m.info.content.list.find((o) => o.txt?.text === 'Got it')
+    if (!btn) return null
+    const b = btn.getBounds()
+    return { x: b.centerX, y: b.centerY }
+  })
+  if (!gotIt) throw new Error('не нашёл кнопку справки «Got it»')
+  await tap(gotIt.x, gotIt.y)
+  const introClosed = await page.evaluate(() => {
+    const m = window.__game.scene.getScene('Main')
+    // Второй вход молчит: отметка разовая. Дальше глушим справку целиком —
+    // остальные шаги smoke входят в каждое окно первый раз.
+    const still = m.info.isOpen
+    m.modal?.close()
+    m.state.tutorial.seen.__all = true
+    return !still
+  })
+  if (!intro.shown || !intro.modal) throw new Error('справка экрана не показалась')
+  if (!introClosed) throw new Error('справка экрана не закрылась')
+
+  if (!start.active || !start.card) throw new Error('обучение не показалось на старте')
+  if (!navLocked || !stillClosed) throw new Error('закрытая вкладка открылась')
+  if (!atBuy.await || atBuy.next) throw new Error('шаг покупки не ждёт действия')
+  if (advanced <= atBuy.step) throw new Error('покупка не закрыла шаг')
+  if (!after.done || !after.unlocked) throw new Error('обучение не завершилось')
+  return { ok: true, start, navLocked, stillClosed, atBuy, advanced, after, intro }
+})
+
 // 1. Главный экран: гонка идёт, апгрейд покупается.
 await step('главный экран', async () => page.evaluate(() => {
   const main = window.__game.scene.getScene('Main')
