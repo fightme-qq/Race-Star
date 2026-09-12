@@ -6,12 +6,19 @@ import { DealsView } from './DealsView.js'
 import { CashView } from './CashView.js'
 import { GemsView } from './GemsView.js'
 import { PassesView } from './PassesView.js'
+import { LuckyView } from '../extras/LuckyView.js'
+import { CodesView } from '../extras/CodesView.js'
+import { fitText } from '../layout.js'
 
 const TABS = [
   { key: 'deals', text: 'DEALS', View: DealsView },
   { key: 'cash', text: 'CASH', View: CashView },
   { key: 'gems', text: 'GEMS', View: GemsView },
   { key: 'passes', text: 'PASSES', View: PassesView },
+  // Lucky Draw и гифт-коды — тот же кошелёк гемов, что и весь магазин: розыгрыш
+  // стоит гемов [F], код выдаёт их [E]. Поэтому они здесь, а не пятой модалкой.
+  { key: 'lucky', text: 'LUCKY', View: LuckyView },
+  { key: 'codes', text: 'CODES', View: CodesView },
 ]
 
 // Вкладка 6 нижнего меню — магазин. Кадра этого экрана нет ни одного (см.
@@ -45,7 +52,11 @@ export class ShopModal extends Phaser.GameObjects.Container {
 
     const tw = (bw - 24) / TABS.length
     this.tabs = TABS.map((tab, i) => {
-      const btn = new Button(scene, bx + 12 + tw * (i + 0.5), by + 66, tw - 6, 32, tab.text, { size: 12 })
+      const btn = new Button(scene, bx + 12 + tw * (i + 0.5), by + 66, tw - 6, 32, tab.text, { size: 11 })
+      // Шесть вкладок на 390px дают по 52px на кнопку, а `PASSES` кеглем 12
+      // занимает 54 — подпись вылезала за плашку. Кегль ужимается по
+      // ИЗМЕРЕННОЙ ширине; выкидывать вкладку нельзя, она единственный вход.
+      fitText(btn.txt, tw - 12)
       btn.on('press', () => this.setTab(i))
       this.add(btn)
       return btn

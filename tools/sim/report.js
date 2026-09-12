@@ -3,7 +3,7 @@ import { simulate } from './simulate.js'
 import { fastSim } from './fastsim.js'
 import { POLICIES } from './policies.js'
 import { CLASS_PLANS, switchRoi } from './classplan.js'
-import { withoutShop, withoutGacha } from './sinks.js'
+import { withoutShop, withoutGacha, withoutGear, withoutGarage, withoutLucky } from './sinks.js'
 import { milestoneTargets, unlockSec } from './targets.js'
 import { CLASS_UNLOCK_PRICES } from '../../src/config/balance.js'
 
@@ -60,11 +60,31 @@ for (const [name, policy] of Object.entries(POLICIES)) {
   // Магазин отчитывается ДОЛЕЙ ГЕМОВ, а не только суммой: гемы — общий кошелёк
   // паков и гачи, и «магазин съел вторую ось силы» выглядит по деньгам ровно
   // так же, как «магазин никому не нужен».
-  const gemsTotal = r.gemsShop + r.gemsPacks
+  const gemsTotal = r.gemsShop + r.gemsPacks + r.gemsGear
+  const share = (n) => (100 * n / Math.max(1, gemsTotal)).toFixed(0) + '%'
   console.log(`магазин: сделок ${r.deals} | выдал ${money(r.shopCash)} ` +
-    `(${(100 * r.shopCash / Math.max(1, r.earned)).toFixed(1)}% дохода) | ` +
-    `гемов в магазин ${(100 * r.gemsShop / Math.max(1, gemsTotal)).toFixed(0)}%, ` +
-    `в гачу ${(100 * r.gemsPacks / Math.max(1, gemsTotal)).toFixed(0)}%`)
+    `(${(100 * r.shopCash / Math.max(1, r.earned)).toFixed(1)}% дохода)`)
+  // Стоков пять (шаги 6-9), и доля по каждому — единственный способ отличить
+  // «сток съел остальные» от «сток никому не нужен» в одном числе.
+  console.log(`гемы: магазин ${share(r.gemsShop)} | гача ${share(r.gemsPacks)} | ` +
+    `гир+гараж+lucky ${share(r.gemsGear)} ` +
+    `(по делителю: ${Object.entries(r.gemSplit).map(([k, v]) => k + ' ' + v).join(', ')})`)
+
+  // Новые оси силы — сколько их в состоянии на конец прогона. Без этих чисел
+  // «гир не работает» и «гир работает, но не нужен» в отчёте не различить.
+  const st = r.state
+  const worn = Object.keys(st.gear.equip[st.activeClass] ?? {}).length
+  const carId = st.garage.active[st.activeClass]
+  const carSt = st.garage.cars[carId] ?? {}
+  const gr = st.gear.statsOf(st.activeClass)
+  console.log(`гир: предметов ${st.gear.items.length}, надето ${worn}/10, ` +
+    `вклад ⚔${Math.round(gr.off)}/🛡${Math.round(gr.def)} | ` +
+    `гараж: ${carId ?? '—'} Lv.${carSt.level ?? 0} ★${carSt.stars ?? 0}, ` +
+    `частей ${st.parts.items.length}`)
+  console.log(`соревнования: медалей ${st.arena.medals} (лига арены ${st.arena.league}), ` +
+    `кубок ступень ${st.compete.cup.tier}, рамок ${st.compete.cup.taken.length} | ` +
+    `аутфитов ${st.outfits.filter((o) => o.owned).length}, ядер ${st.extras.cores}, ` +
+    `альбомов ${st.collection.claimed.length}`)
 
   // Две колонки намеренно: «накопил» — когда денег стало достаточно, «открыл» —
   // когда игрок действительно перешёл. Расхождение и есть цена перехода.
@@ -111,19 +131,27 @@ console.log(`\n=== гемовые стоки (cheapestFirst, switchRoi) — ${HO
     hours: HOURS, policy: POLICIES.cheapestFirst, classPlan: switchRoi,
   }))
   const mixed = runs.cheapestFirst
+  // Пять стоков: каждый выключается по очереди. Строка «без X» читается как
+  // «сколько игрок заработает, если этой траты в игре нет» — если столько же
+  // или больше, трата лишняя или вредная.
   const rows = [
-    ['обе оси', mixed],
-    ['только гача', single(withoutShop)],
-    ['только магазин', single(withoutGacha)],
+    ['все пять', mixed],
+    ['без магазина', single(withoutShop)],
+    ['без гачи', single(withoutGacha)],
+    ['без гира', single(withoutGear)],
+    ['без гаража', single(withoutGarage)],
+    ['без lucky', single(withoutLucky)],
   ]
-  console.log('           сток | заработано | лига | роллов | сделок')
+  console.log('           сток | заработано | лига | роллов | разрыв')
   for (const [name, r] of rows) {
+    const gap = r === mixed ? null : mixed.earned / Math.max(1, r.earned)
     console.log(`  ${pad(name, 13)} | ${pad(money(r.earned), 10)} | ` +
-      `${pad(r.state.cls.league, 4)} | ${pad(r.draws, 6)} | ${pad(r.deals, 6)}`)
+      `${pad(r.state.cls.league, 4)} | ${pad(r.draws, 6)} | ` +
+      (gap === null ? '     —' : pad('x' + gap.toFixed(2), 6)) +
+      (gap !== null && gap < 1.10 ? '  <-- сток лишний или вредный' : ''))
   }
   const worst = Math.min(...rows.slice(1).map(([, r]) => mixed.earned / Math.max(1, r.earned)))
-  console.log(`  смешанная игра обгоняет худший одиночный сток в ${worst.toFixed(2)} раза` +
-    (worst < 1.10 ? '  <-- сток лишний или вредный' : ''))
+  console.log(`  худший разрыв x${worst.toFixed(2)} (требование: не ниже x1.10)`)
   const last = mixed.samples[mixed.samples.length - 1]
   console.log(`  курс в конце: пак ${money(last.packPerGem)}/гем, ` +
     `гача ${last.gachaPerGem === null ? '—' : money(last.gachaPerGem)}/гем ` +

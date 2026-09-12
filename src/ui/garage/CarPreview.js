@@ -41,6 +41,35 @@ export function drawCarPreview(g, cx, cy, color, decalId) {
   g.fillRoundedRect(cx + L * 0.1, y + W * 0.22, L * 0.07, W * 0.56, 4)
 }
 
+// Образец декали для плитки списка. Без него все пять плиток выглядят одной и
+// той же полоской, и выбрать по ним нечего: имя «Flames» не говорит, что
+// увидишь на кузове.
+export function drawDecalSwatch(g, x, y, s, id, base) {
+  g.fillStyle(base, 1)
+  g.fillRoundedRect(x, y, s, s, 5)
+  if (id === 'stripes') {
+    g.fillStyle(PAL.onDark, 0.9)
+    for (const k of [0.3, 0.58]) g.fillRect(x, y + s * k, s, s * 0.12)
+  } else if (id === 'flames') {
+    g.fillStyle(PAL.gold, 0.95)
+    g.fillTriangle(x + 1, y + 2, x + s - 2, y + s / 2, x + 1, y + s - 2)
+  } else if (id === 'bolts') {
+    g.lineStyle(2, PAL.gold, 0.95)
+    g.beginPath()
+    g.moveTo(x + 2, y + s * 0.3)
+    g.lineTo(x + s * 0.5, y + s * 0.62)
+    g.lineTo(x + s - 2, y + s * 0.28)
+    g.strokePath()
+  } else if (id === 'checker') {
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        g.fillStyle((i + j) % 2 ? PAL.onDark : PAL.dark, 0.9)
+        g.fillRect(x + i * s / 3, y + j * s / 3, s / 3, s / 3)
+      }
+    }
+  }
+}
+
 // Декали — та же пятёрка, что в DECALS: полосы, огонь, молния, клетка.
 function decal(g, cx, cy, id) {
   const { w: L, h: W } = PREVIEW

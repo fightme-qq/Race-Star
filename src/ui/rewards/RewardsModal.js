@@ -6,12 +6,17 @@ import { TasksView } from './TasksView.js'
 import { PassView } from './PassView.js'
 import { DailyView } from './DailyView.js'
 import { MailView } from './MailView.js'
+import { AlbumsView } from '../extras/AlbumsView.js'
+import { fitText } from '../layout.js'
 
 const TABS = [
   { key: 'tasks', text: 'TASKS', View: TasksView },
   { key: 'pass', text: 'PASS', View: PassView },
   { key: 'daily', text: 'DAILY', View: DailyView },
   { key: 'mail', text: 'MAIL', View: MailView },
+  // Коллекции — сезонное событие с наградами, то есть та же вкладка 5, а не
+  // магазин: Stars тратятся внутри неё, гемы в ней не участвуют вовсе.
+  { key: 'albums', text: 'ALBUMS', View: AlbumsView },
 ]
 
 // Вкладка 5 нижнего меню — награды. Кадра этого экрана нет ни одного (см.
@@ -42,6 +47,9 @@ export class RewardsModal extends Phaser.GameObjects.Container {
     const tw = (bw - 24) / TABS.length
     this.tabs = TABS.map((tab, i) => {
       const btn = new Button(scene, bx + 12 + tw * (i + 0.5), by + 66, tw - 6, 32, tab.text, { size: 12 })
+      // С пятой вкладкой полоса стала тесной: `ALBUMS` в 63px кеглем 12 не
+      // влезает. Ужимаем по измеренной ширине, а не выкидываем вкладку.
+      fitText(btn.txt, tw - 14)
       btn.on('press', () => this.setTab(i))
       this.add(btn)
       return btn

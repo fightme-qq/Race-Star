@@ -173,25 +173,32 @@ export class GearBag {
   merge(targetUid, victimUid) {
     const t = this.get(targetUid)
     const v = this.get(victimUid)
-    if (!t || !v || t.uid === v.uid) return false
-    if (t.slot !== v.slot || t.rarity !== v.rarity) return false
-    if (this.whereEquipped(v.uid)) return false
+    if (!t || !v || t.uid === v.uid) return null
+    if (t.slot !== v.slot || t.rarity !== v.rarity) return null
+    if (this.whereEquipped(v.uid)) return null
     const r = this.kind.rarityOf(t.rarity)
-    if (t.plus >= r.maxPlus) { this.addShards(r.shard, r.dust); this.remove(v.uid); return true }
+    // Возвращаем, ЧТО именно произошло и сколько осколков упало: иначе подпись
+    // «+N осколков» пришлось бы считать в UI второй копией формулы (правило 16).
+    if (t.plus >= r.maxPlus) {
+      this.addShards(r.shard, r.dust)
+      this.remove(v.uid)
+      return { ok: true, plus: false, shard: r.shard, amount: r.dust }
+    }
     t.plus++
     this.remove(v.uid)
     this.touch()
-    return true
+    return { ok: true, plus: true, amount: 0 }
   }
 
   // Рассыпать предмет в осколки вручную — [E] `Parts`. Надетый не рассыпается.
   scrap(uid) {
     const it = this.get(uid)
-    if (!it || this.whereEquipped(uid)) return false
+    if (!it || this.whereEquipped(uid)) return null
     const r = this.kind.rarityOf(it.rarity)
-    this.addShards(r.shard, r.dust * (1 + it.plus) + Math.round(r.shardCost * it.level * 0.5))
+    const amount = r.dust * (1 + it.plus) + Math.round(r.shardCost * it.level * 0.5)
+    this.addShards(r.shard, amount)
     this.remove(uid)
-    return true
+    return { ok: true, shard: r.shard, amount }
   }
 
   // --- паки ---------------------------------------------------------------
@@ -244,7 +251,10 @@ export class GearBag {
     for (const it of [...this.items]) {
       if (!this.get(it.uid)) continue
       let partner
-      while ((partner = this.mergePartner(it))) { this.merge(it.uid, partner.uid); changed++ }
+      while ((partner = this.mergePartner(it))) {
+        if (!this.merge(it.uid, partner.uid)) break
+        changed++
+      }
     }
     for (let slot = 0; slot < this.kind.slotCount; slot++) {
       if (!openSlots(slot)) continue

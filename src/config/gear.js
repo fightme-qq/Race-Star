@@ -9,24 +9,50 @@
 //   [X] — наше число, в оригинале не наблюдалось.
 // Ни одного [F] в этом файле нет и быть не может.
 
+import { RACE_CLASSES } from './classes.js'
+
 // [E] Шесть наборов по РОВНО 10 слотов — по одному набору на класс
-// (последовательные блоки id в билде). Порядок классов тот же, что в
-// config/classes.js. Седьмой набор (идентичный набору Rally) лежит в более
-// позднем блоке id и относится к событийному Go-Kart — у нас его нет.
-export const SLOT_SETS = {
-  racing: ['Balaclava', 'Wristband', 'Driving Boots', 'Racing Suit', 'Base Layer',
+// (последовательные блоки id в билде). Седьмой набор, идентичный набору Rally,
+// лежит в более позднем блоке id и относится к событийному Go-Kart — у нас его
+// нет.
+//
+// Набор привязывается к классу ПО ПОРЯДКУ, а не по ключу-строке, и это не стиль.
+// Первая версия держала объект с ключами `superbike` / `speedster`, а в
+// classes.js id этих классов — `bike` / `speed`: `slotName()` молча падал на
+// набор Racing, то есть два класса из шести показывали чужие имена слотов
+// («Balaclava» там, где должно быть «Helmet»), а два набора [E] оказались
+// мёртвым кодом. Сборка, smoke и консоль на это не реагируют вовсе — поймано
+// глазами на экране. Со списком и индексом класса рассинхрон невозможен.
+//
+// ОГОВОРКА ИСТОЧНИКА: порядок блоков id в билде известен, а вот какому классу
+// какой блок принадлежит — выведено, а не прочитано. Сильная зацепка одна:
+// четвёртый набор (`Shoulder Pads`, `Back Plate`, `Chest Protector`) — это
+// мотоэкипировка, и он приходится ровно на Superbike. Остальные пять встают за
+// ним по порядку.
+const SLOT_SET_LIST = [
+  // Racing
+  ['Balaclava', 'Wristband', 'Driving Boots', 'Racing Suit', 'Base Layer',
     'Arm Sleeve', 'Knee Pads', 'Cooling Sleeve', 'Leg Sleeve', 'Mouthguard'],
-  stock: ['Balaclava', 'Team Armband', 'Driving Boots', 'Racing Suit', 'Base Layer',
+  // Stock Car
+  ['Balaclava', 'Team Armband', 'Driving Boots', 'Racing Suit', 'Base Layer',
     'Arm Sleeve', 'Knee Guards', 'Wristband', 'Beanie', 'Neck Warmer'],
-  rally: ['Helmet', 'Racing Gloves', 'Driving Boots', 'Racing Suit', 'Racing Trousers',
+  // Rally
+  ['Helmet', 'Racing Gloves', 'Driving Boots', 'Racing Suit', 'Racing Trousers',
     'Race Harness', 'Knee Guard', 'Elbow Guards', 'Neck Guard', 'Mouthguard'],
-  superbike: ['Helmet', 'Racing Gloves', 'Arm Sleeve', 'Racing Suit', 'Racing Trousers',
+  // Superbike — опознан по мотоэкипировке
+  ['Helmet', 'Racing Gloves', 'Arm Sleeve', 'Racing Suit', 'Racing Trousers',
     'Shoulder Pads', 'Elbow Pad', 'Wristband', 'Back Plate', 'Chest Protector'],
-  monster: ['Team Cap', 'Racing Gloves', 'Driving Boots', 'Racing Suit', 'Racing Trousers',
+  // Speedster
+  ['Team Cap', 'Racing Gloves', 'Driving Boots', 'Racing Suit', 'Racing Trousers',
     'Arm Sleeve', 'Pit Gloves', 'Wristband', 'Steering Wheel', 'Base Layer'],
-  speedster: ['Balaclava', 'Finger Tape', 'Driving Boots', 'Racing Suit', 'Base Layer',
+  // Monster Truck
+  ['Balaclava', 'Finger Tape', 'Driving Boots', 'Racing Suit', 'Base Layer',
     'Arm Sleeve', 'Elbow Sleeve', 'Wristband', 'Sweatband', 'Knee Pads'],
-}
+]
+
+export const SLOT_SETS = Object.fromEntries(
+  RACE_CLASSES.map((c, i) => [c.id, SLOT_SET_LIST[i] ?? SLOT_SET_LIST[0]])
+)
 
 export const SLOT_COUNT = 10
 
@@ -90,6 +116,10 @@ export const GEAR = {
   // Дневной лимит бесплатных открытий по рекламе [E] `Watch an ad to get gear
   // for free`. Счётчик живёт в ведре наград, как и у магазина (правило 26e).
   freeAdsPerDay: 3,
+  // Какой пак открывает бесплатная реклама. Числом в системе это было бы
+  // магической константой (правило 1): кнопка не смогла бы подписать, что
+  // именно она даёт.
+  freeAdPack: 'standard',
 }
 
 // Паки [E] `Standard Gear` / `Elite Gear`, кнопки `Open x1` / `Open x10`,

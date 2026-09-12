@@ -54,6 +54,10 @@ export function slotRows(bag, classId, races) {
       value: it ? bag.valueOf(it) : 0,
       open: slotOpen(races, slot),
       needs: slotNeeds(slot),
+      // Сколько заездов ОСТАЛОСЬ: строку `Play N races to unlock` иначе нельзя
+      // собрать из одной строки данных — UI пришлось бы лезть за cls.races
+      // отдельно и складывать самому.
+      left: Math.max(0, slotNeeds(slot) - races),
     }
   })
 }

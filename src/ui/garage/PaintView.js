@@ -6,7 +6,7 @@ import { label, Button } from '../widgets.js'
 import { fitText, columns, vcenter } from '../layout.js'
 import { formatMoney } from '../../utils/format.js'
 import { card } from './cardBg.js'
-import { drawCarPreview, PREVIEW } from './CarPreview.js'
+import { drawCarPreview, drawDecalSwatch, PREVIEW } from './CarPreview.js'
 
 const HEAD_H = 38
 const COLS = 2
@@ -19,8 +19,9 @@ const PREVIEW_H = SP.md * 2 + PREVIEW.h + CAP_H
 // поэтому: поздние деньги больше некуда девать (см. config/garage.js). Цена — в
 // секундах дохода (правило 24), поэтому к поздней игре она не обнуляется.
 //
-// Превью рисует тот же CarPainter, что и трасса: вторая отрисовка кузова
-// означала бы, что в гараже игрок выбирает один цвет, а на карте видит другой.
+// Превью показывает выбранную краску и декаль на кузове — почему это своя
+// отрисовка, а не масштабированный CarPainter с трассы, разобрано в шапке
+// CarPreview.js (у того всё считается в пикселях точки 11x6).
 export class PaintView extends Phaser.GameObjects.Container {
   constructor(scene, state, w, { toast, onChange }) {
     super(scene, 0, 0)
@@ -102,14 +103,14 @@ export class PaintView extends Phaser.GameObjects.Container {
       const owned = this.owned(kind, cell.def.id)
       const active = this.selected(kind) === cell.def.id
 
-      // Образец: у краски это её цвет, у декали — полоса поверх текущей краски,
-      // иначе тринадцать плиток выглядят одинаково пустыми.
+      // Образец: у краски это её цвет (у `Team Colors` — цвет команды на
+      // карте), у декали — сам рисунок поверх текущей краски.
       const sx = col.x + SP.sm, sy = cy + SP.md
-      this.bg.fillStyle(kind === 'paint' ? (cell.def.color ?? this.teamColor) : this.bodyColor, 1)
-      this.bg.fillRoundedRect(sx, sy, SWATCH, SWATCH, 5)
-      if (kind === 'decal' && cell.def.id !== DECALS[0].id) {
-        this.bg.fillStyle(PAL.onDark, 0.85)
-        this.bg.fillRect(sx, sy + SWATCH / 2 - 2, SWATCH, 4)
+      if (kind === 'paint') {
+        this.bg.fillStyle(cell.def.color ?? this.teamColor, 1)
+        this.bg.fillRoundedRect(sx, sy, SWATCH, SWATCH, 5)
+      } else {
+        drawDecalSwatch(this.bg, sx, sy, SWATCH, cell.def.id, this.bodyColor)
       }
       this.bg.lineStyle(active ? 2 : 1, active ? PAL.accent : PAL.line, 1)
       this.bg.strokeRoundedRect(sx, sy, SWATCH, SWATCH, 5)

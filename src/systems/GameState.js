@@ -612,7 +612,7 @@ export class GameState {
     if (this.gearFreeLeft <= 0) return null
     this.rw.gear.ads = (this.rw.gear.ads || 0) + 1
     this.track('adWatch')
-    const out = this.gear.draw('standard', 1)
+    const out = this.gear.draw(GEAR.freeAdPack, 1)
     this.invalidatePower()
     return out
   }
@@ -636,16 +636,18 @@ export class GameState {
     return ok
   }
 
+  // Возвращают не булево, а ЧТО случилось: плюс-ступень или осколки и сколько.
+  // Считать это в UI значило бы вторую копию формулы выплаты (правило 16).
   mergeGear(targetUid, victimUid) {
-    const ok = this.gear.merge(targetUid, victimUid)
-    if (ok) this.invalidatePower()
-    return ok
+    const res = this.gear.merge(targetUid, victimUid)
+    if (res) this.invalidatePower()
+    return res
   }
 
   scrapGear(uid) {
-    const ok = this.gear.scrap(uid)
-    if (ok) this.invalidatePower()
-    return ok
+    const res = this.gear.scrap(uid)
+    if (res) this.invalidatePower()
+    return res
   }
 
   autoGear(classId = this.activeClass) {
