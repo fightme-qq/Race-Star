@@ -9,6 +9,8 @@
 // легендарное), 8 слотов частей и три вида осколков гаража.
 // Числа [X] все до единого, кроме цены топовой машины $9.99 [F].
 
+import { RACE_CLASSES } from './classes.js'
+
 // [E] Восемь слотов частей машины, порядок из билда.
 export const CAR_SLOTS = ['Engine', 'Gearbox', 'Suspension', 'Brakes',
   'Tires', 'Battery', 'Clutch', 'Exhaust']
@@ -68,29 +70,40 @@ export const PART_COUPONS = [
 
 // [E] 24 машины, по 4 на класс, в порядке id билда. Описания [E] идут парами
 // на класс: первое — обычное, второе — легендарное; по ним и опознана группа.
-const CAR_NAMES = {
-  racing:    ['Apex Runner', 'Slipstream Ace', 'Vortex Vector', 'Grid Reaper'],
-  stock:     ['Speedway Cruiser', 'Pace Breaker', 'Redline Rebel', 'Thunderstock'],
-  rally:     ['Gravel Scout', 'Mud Slinger', 'Trail Howler', 'Dirt Dominator'],
-  superbike: ['Road Wasp', 'Chrome Sting', 'Razor Wraith', 'Warp Wing'],
-  monster:   ['Heavy Hauler', 'Big Stomper', 'Quake Maker', 'King Crusher'],
-  speedster: ['Streamliner', 'Turbo Dasher', 'Mach Menace', 'Sonic Sovereign'],
-}
+//
+// Список, а не объект с ключами, и это ровно та же причина, что в шапке gear.js:
+// первая версия держала ключи `superbike` / `speedster`, а id этих классов в
+// classes.js — `bike` / `speed`. `carsOf()` возвращал для них ПУСТОЙ массив,
+// значит у двух классов из шести не было ни одной машины: `activeCar` = null,
+// `garageStats` = {0,0}, третья ось силы для них не существовала, вкладка Parts
+// вечно висела на «Select a car first», а приз `car` из Lucky Draw сгорал.
+// Сборка, smoke и консоль на это не реагируют — поймано запуском.
+//
+// Порядок здесь — порядок CLASS_META, а не порядок блоков в билде: Superbike и
+// Speedster в билде идут после Monster Truck.
+const CAR_NAMES = [
+  ['Apex Runner', 'Slipstream Ace', 'Vortex Vector', 'Grid Reaper'],
+  ['Speedway Cruiser', 'Pace Breaker', 'Redline Rebel', 'Thunderstock'],
+  ['Gravel Scout', 'Mud Slinger', 'Trail Howler', 'Dirt Dominator'],
+  ['Road Wasp', 'Chrome Sting', 'Razor Wraith', 'Warp Wing'],
+  ['Streamliner', 'Turbo Dasher', 'Mach Menace', 'Sonic Sovereign'],
+  ['Heavy Hauler', 'Big Stomper', 'Quake Maker', 'King Crusher'],
+]
 
-const CAR_DESC = {
-  racing:    ['A pure-bred racer built to leave the pack behind.',
+const CAR_DESC = [
+  ['A pure-bred racer built to leave the pack behind.',
     'The ultimate racing legend, engineered to dominate every track.'],
-  stock:     ['Stock car muscle that bullies its way to the front.',
+  ['Stock car muscle that bullies its way to the front.',
     'Legendary stock car thunder that owns the whole oval.'],
-  rally:     ['A rally beast that grips any surface at full throttle.',
+  ['A rally beast that grips any surface at full throttle.',
     'The rally icon that conquers dirt, ice, and asphalt alike.'],
-  superbike: ['Razor-sharp handling tuned for daredevil overtakes.',
+  ['Razor-sharp handling tuned for daredevil overtakes.',
     'A legend of raw speed that redefines the racing line.'],
-  monster:   ['A monster truck that crushes everything on the way to the finish.',
-    'The legendary monster rig no wall or rival can stop.'],
-  speedster: ['A featherweight speedster built for blistering pace.',
+  ['A featherweight speedster built for blistering pace.',
     'A once-in-a-generation speedster chasing pure velocity.'],
-}
+  ['A monster truck that crushes everything on the way to the finish.',
+    'The legendary monster rig no wall or rival can stop.'],
+]
 
 // [E] «Разблокировка машины: бесплатно / за гемы / за IAP (три типа кнопок)».
 // Четвёртая машина каждого класса — легендарная: в оригинале топовые машины
@@ -111,17 +124,18 @@ const TIERS = [
 // того, лезешь ты в новую лигу (80% в атаку) или закрепляешься (50/50) —
 // до сих пор отыграть это было нечем.
 export const CARS = []
-for (const [classId, names] of Object.entries(CAR_NAMES)) {
-  names.forEach((name, i) => {
+RACE_CLASSES.forEach((cls, ci) => {
+  const classId = cls.id
+  CAR_NAMES[ci].forEach((name, i) => {
     const t = TIERS[i]
     CARS.push({
       id: `${classId}-${t.key}`, classId, name, tier: t.key, index: i,
-      desc: CAR_DESC[classId][t.legend ? 1 : 0],
+      desc: CAR_DESC[ci][t.legend ? 1 : 0],
       unlock: t.unlock, gems: t.gems, legend: t.legend,
       base: t.base, perLevel: t.perLevel, maxLevel: t.maxLevel, tilt: t.tilt,
     })
   })
-}
+})
 
 export const CAR_BY_ID = Object.fromEntries(CARS.map((c) => [c.id, c]))
 export const carsOf = (classId) => CARS.filter((c) => c.classId === classId)
