@@ -65,7 +65,9 @@ export const STEPS = [
   {
     id: 'buy',
     title: 'Make the team faster',
-    body: 'Upgrades are the whole game. Buy one — cash ticks up every second, so you never wait long.',
+    // Текст обещает ставку, потому что она выдаётся здесь же (Tutorial.stake):
+    // шаг, который ждёт покупки, не может начинаться с пустого кошелька.
+    body: 'Upgrades are the whole game. The first one is on us — tap Upgrade and watch the stats move.',
     target: 'firstCard',
     await: 'buy',
     hint: 'Tap Upgrade',

@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { PAL, CSS, FONT } from '../../config/palette.js'
 import { panel, label, Button } from '../widgets.js'
 import { fitWrapped } from '../layout.js'
-import { SIDE, RACE_Y, R } from '../../config/layout.js'
+import { SIDE, RACE_Y, R, CARD } from '../../config/layout.js'
 import { STEPS } from '../../config/tutorial.js'
 
 const CARD_W = 330
@@ -16,9 +16,22 @@ const BTN_H = 38
 const TARGETS = {
   raceHead: (s) => new Phaser.Geom.Rectangle(SIDE, RACE_Y, s.scale.width - SIDE * 2, 76),
   raceStats: (s) => union(s.racePanel.offText, s.racePanel.defText, s.racePanel.modeText),
-  firstCard: (s) => s.grid.cards[0]?.getBounds(),
+  firstCard: (s) => boxOf(s.grid.cards[0], CARD.w, CARD.h),
   income: (s) => union(s.topBar.incomeText),
   objective: (s) => s.objective?.getBounds(),
+}
+
+// Рамка карточки нарисована Graphics, а `Container.getBounds()` объединяет
+// ТОЛЬКО те дочерние объекты, у которых есть свой getBounds — у Graphics его
+// нет вовсе. То есть карточка «измеряется» как объединение своих текстов.
+// Замерено на первой карточке: 40,457 150x126 против настоящих 18,456 172x142 —
+// подсветка уезжала на 22px вправо и оставляла плашку иконки в темноте. Поэтому
+// у объектов со своей геометрией берём ЕЁ, а от объекта — только положение в
+// мире (карточка сидит в скролле, её x/y локальные).
+const boxOf = (obj, w, h) => {
+  if (!obj) return null
+  const m = obj.getWorldTransformMatrix()
+  return new Phaser.Geom.Rectangle(m.tx, m.ty, w, h)
 }
 
 const union = (...objs) => {

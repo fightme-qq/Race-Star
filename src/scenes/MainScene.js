@@ -54,7 +54,7 @@ export class MainScene extends Phaser.Scene {
     // Справка по ⓘ. Список под ней запираем: слушатели скролла висят на
     // scene.input, затемнение их не перехватывает, и список ездил бы под
     // открытым окном.
-    this.info = new InfoPopup(this, () => { this.grid.locked = !!this.modal?.active })
+    this.info = new InfoPopup(this, () => this.syncLock())
 
     this.objective = new ObjectiveBar(this, this.state)
 
@@ -109,8 +109,22 @@ export class MainScene extends Phaser.Scene {
   }
 
   openInfo(def) {
-    this.grid.locked = true
     this.info.show(upgradeInfo(def, this.state))
+    this.syncLock()
+  }
+
+  // Скролл сетки запирается ОДНИМ решением на всех, кто гасит экран. Слушатели
+  // ScrollView висят на scene.input (иначе Zone с topOnly ела бы тапы по
+  // кнопкам внутри карточек), а глобальный слушатель затемнением не
+  // перехватывается в принципе: зоны Spotlight работают через topOnly, к
+  // scene.input.on('pointerdown') это правило не применяется.
+  //
+  // Обучение об этом не знало и запирало только вкладки — список ездил под
+  // затемнением, то есть подсветка показывала на карточку, которую игрок тут же
+  // уводил из-под рамки. Присваивать `locked` по месту нельзя: закрытие справки
+  // поверх открытого обучения снимало бы замок, поставленный обучением.
+  syncLock() {
+    this.grid.locked = !!this.modal?.active || !!this.info?.isOpen || !!this.tutorial?.active
   }
 
   activateBoost() {
@@ -132,8 +146,8 @@ export class MainScene extends Phaser.Scene {
       onChange: () => { this.state.save(); this.refreshUI() },
       ...opts,
       onClose: () => {
-        this.grid.locked = false
         this.modal = null
+        this.syncLock()
         this.toasts.setAnchor(TOAST_Y, TOAST_STACK)
         if (navIndex !== null) this.nav.setActive(0)
         opts.onClose?.()

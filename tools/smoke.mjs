@@ -122,12 +122,19 @@ await step('обучение и ворота', async () => {
     return { step: m.state.tutorial.step, await: !!m.state.tutorial.current?.await, next: m.tutorial.card.nextBtn.visible }
   })
 
-  // Покупка закрывает шаг сама — «Next» под ним нет по построению.
-  await page.evaluate(() => {
+  // Шаг, который ждёт покупки, обязан быть выполним БЕЗ помощи стенда: денег
+  // здесь больше не выдаём. Раньше smoke дарил $100K перед тапом и поэтому три
+  // этапа не видел, что у живого игрока кошелёк $0 при цене слота $25.
+  //
+  // Заодно проверяем, что список не ездит под затемнением: слушатели скролла
+  // висят на scene.input, и зоны Spotlight их не перехватывают.
+  const dragged = await page.evaluate(async () => {
     const m = window.__game.scene.getScene('Main')
-    m.state.addCash(1e5)
-    m.grid.view.setScroll(0)
-    m.refreshUI()
+    const before = m.grid.view.scrollY
+    m.grid.view.handlers.pointerdown({ x: 195, y: 700 })
+    m.grid.view.handlers.pointermove({ x: 195, y: 520, isDown: true })
+    m.grid.view.handlers.pointerup()
+    return { moved: m.grid.view.scrollY !== before, affordable: m.state.canBuy(m.grid.cards[0].def.key) }
   })
   await tapObj('grid.cards.0.buyBtn')
   const advanced = await page.evaluate(() =>
@@ -178,9 +185,11 @@ await step('обучение и ворота', async () => {
   if (!start.active || !start.card) throw new Error('обучение не показалось на старте')
   if (!navLocked || !stillClosed) throw new Error('закрытая вкладка открылась')
   if (!atBuy.await || atBuy.next) throw new Error('шаг покупки не ждёт действия')
+  if (!dragged.affordable) throw new Error('шаг покупки показан при нехватке денег')
+  if (dragged.moved) throw new Error('список ездит под затемнением обучения')
   if (advanced <= atBuy.step) throw new Error('покупка не закрыла шаг')
   if (!after.done || !after.unlocked) throw new Error('обучение не завершилось')
-  return { ok: true, start, navLocked, stillClosed, atBuy, advanced, after, intro }
+  return { ok: true, start, navLocked, stillClosed, atBuy, dragged, advanced, after, intro }
 })
 
 // 1. Главный экран: гонка идёт, апгрейд покупается.

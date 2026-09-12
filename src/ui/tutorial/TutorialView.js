@@ -1,5 +1,7 @@
 import Phaser from 'phaser'
 import { DEPTH } from '../../config/layout.js'
+import { PAL } from '../../config/palette.js'
+import { formatMoney } from '../../utils/format.js'
 import { Spotlight } from './Spotlight.js'
 import { TutorialCard, targetRect } from './TutorialOverlay.js'
 
@@ -55,11 +57,21 @@ export class TutorialView {
   // Полная перерисовка при смене шага.
   sync() {
     const step = this.tut.current
+    // Замок скролла снимается/ставится ЗДЕСЬ и только здесь: это единственное
+    // место, которое видит смену шага, включая последнюю — выход из обучения.
+    this.scene.syncLock?.()
     if (!step) {
       this.spot.setVisible(false)
       this.card.hide()
       this.shown = null
       return
+    }
+    // Ставка выдаётся ДО отрисовки: иначе кнопка «Upgrade» на своём же шаге
+    // первые 200 мс остаётся серой (тяжёлый рефреш идёт 5 раз в секунду).
+    const staked = this.tut.stake()
+    if (staked > 0) {
+      this.scene.refreshUI()
+      this.scene.toasts?.show('Starter stake ' + formatMoney(staked), PAL.green)
     }
     this.shown = step.id
     this.spot.setVisible(true)
