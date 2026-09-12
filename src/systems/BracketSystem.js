@@ -79,7 +79,7 @@ export const rewardsForPlace = (place, leagueIdx = 0) => {
 // Регистрация. [E] `You are already registered`, `Not registered`,
 // `Remember to register again for each new Weekly Tournament` — то есть
 // регистрация сбрасывается вместе с периодом.
-export function registerBracket(b, key, raceNow) {
+export function registerBracket(b, key, raceNow, perRound = BRACKET.racesPerRound) {
   if (b.key === key && b.registered) return false
   if (b.key !== key) Object.assign(b, freshBracket())
   b.key = key
@@ -87,7 +87,8 @@ export function registerBracket(b, key, raceNow) {
   b.alive = true
   b.round = 0
   b.place = null
-  b.raceAt = raceNow + BRACKET.racesPerRound
+  b.raceAt = raceNow + perRound
+  b.perRound = perRound
   b.log = []
   return true
 }
@@ -111,7 +112,7 @@ export function advanceBracket(b, { off, def, field, raceNow, rnd }) {
     b.place = 1
   } else {
     b.round++
-    b.raceAt = raceNow + BRACKET.racesPerRound
+    b.raceAt = raceNow + (b.perRound ?? BRACKET.racesPerRound)
   }
   return { ...res, opponent: opp, round: b.round, place: b.place, name: opp.name }
 }

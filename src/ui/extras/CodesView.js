@@ -44,12 +44,12 @@ export class CodesView extends Phaser.GameObjects.Container {
     const kw = (w - PAD * 2 - KGAP * (KCOLS - 1)) / KCOLS
     this.keys = KEYS.map((ch, i) => {
       const btn = this.key(scene, i, kw, KEY_H, ch)
-      btn.on('press', () => this.type(ch))
+      btn.on('press', () => this.keyPress(ch))
       return btn
     })
     // DEL занимает две клетки: промахнуться по стиранию неприятнее, чем по букве.
     this.del = this.key(scene, KEYS.length, kw, KEY_H, 'DEL', { wide: true, fill: PAL.dim })
-    this.del.on('press', () => this.type(null))
+    this.del.on('press', () => this.keyPress(null))
 
     this.redeemBtn = new Button(scene, w / 2, KB_Y + KB_H + 26, w - PAD * 2, 32, 'Redeem',
       { size: 13, fill: PAL.accent })
@@ -79,7 +79,10 @@ export class CodesView extends Phaser.GameObjects.Container {
     return btn
   }
 
-  type(ch) {
+  // НЕ `type`: у GameObject это собственное поле-строка ('Container'), и метод
+  // с таким именем оно перекрывает — экранная клавиатура падала на каждом тапе
+  // с `this.type is not a function` (та же семья граблей, что правило 11).
+  keyPress(ch) {
     if (ch === null) this.code = this.code.slice(0, -1)
     else if (this.code.length < GIFT_CODES.maxLen) this.code += ch
     this.msg.setText('')
@@ -110,7 +113,10 @@ export class CodesView extends Phaser.GameObjects.Container {
     this.field.setText(this.code || 'ENTER GIFT CODE')
     this.field.setColor(this.code ? CSS.text : CSS.dim)
     fitText(this.field.setFontSize(this.code ? 18 : 13), this.boxW - PAD * 2 - 12)
-    this.redeemBtn?.setEnabled(this.code.length >= GIFT_CODES.minLen)
+    // Кнопка живая на ЛЮБОМ непустом коде, а не только на длине от minLen:
+    // сообщение о длине — строка оригинала [E], и запретом нажатия игрок её
+    // никогда бы не увидел, то есть правило про длину осталось бы необъяснённым.
+    this.redeemBtn?.setEnabled(this.code.length > 0)
   }
 
   refresh() {

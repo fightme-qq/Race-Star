@@ -39,6 +39,33 @@ export const SCREENS = {
   shopCash: { open: 'openShop', cash: 1e6, races: 6, tab: 1 },
   shopGems: { open: 'openShop', cash: 1e6, tab: 2 },
   shopPasses: { open: 'openShop', cash: 1e6, tab: 3 },
+  // Шаги 6-9. Кадра оригинала нет ни у одного из этих экранов (вкладки 2, 4-6,
+  // гараж, арена, клубы и коллекции не показаны ни на одном из 42), поэтому они
+  // снимаются только для `shot` — проверить наложения и обрезку маской.
+  // `draw` набивает инвентарь: на пустых слотах не видно ни имён предметов, ни
+  // ценников апгрейда, то есть ровно того, что и наезжает друг на друга.
+  gear: { open: 'openGear', cash: 1e6, races: 30, draw: 20, tab: 0 },
+  gearPacks: { open: 'openGear', cash: 1e6, draw: 4, tab: 1 },
+  gearBag: { open: 'openGear', cash: 1e6, draw: 24, tab: 2 },
+  garage: { open: 'openGarage', cash: 1e9, tab: 0 },
+  garageParts: { open: 'openGarage', cash: 1e9, drawParts: 16, tab: 1 },
+  garagePaint: { open: 'openGarage', cash: 1e9, tab: 2 },
+  // Арена и клуб — состояние «уже играл»: на нуле нет ни истории, ни таблицы.
+  arena: { open: 'openLeagues', cash: 1e6, races: 14, arena: 2, tab: 1 },
+  tourney: { open: 'openLeagues', cash: 1e6, races: 40, register: true, tab: 2 },
+  cup: { open: 'openLeagues', cash: 1e6, races: 40, register: true, tab: 3 },
+  club: { open: 'openLeagues', cash: 1e6, races: 14, club: true, tab: 4 },
+  // Первый альбом добит целиком, а Wild Cards выданы: иначе на кадре нет ни
+  // кнопки `Claim`, ни подписи `USE WILD` — то есть ровно тех двух состояний,
+  // которые и могут наложиться на соседей.
+  rewardsAlbums: { open: 'openRewards', cash: 1e6, races: 22, cards: true, wild: 2, album: 0, tab: 4 },
+  shopLucky: { open: 'openShop', cash: 1e6, tab: 4 },
+  shopCodes: { open: 'openShop', cash: 1e6, tab: 5 },
+  careerOutfits: { open: 'openCareer', cash: 1e6, outfits: 3, tab: 1 },
+  careerAvatars: { open: 'openCareer', cash: 1e6, races: 22, tab: 2 },
+  // Полоса Unique Cores есть только у Unique-драйвера, а в гаче он 0.5% —
+  // ждать его выпадения кадром нельзя, поэтому выдаём прямо.
+  driversCores: { open: 'openDrivers', cash: 1e6, unique: true, tab: 0 },
   parallel: { open: null, cash: 30e6, unlock: 3, fans: 4e6 },
   parallelClasses: { open: 'openClasses', cash: 30e6, unlock: 3, fans: 4e6 },
 }
@@ -102,6 +129,39 @@ export async function goto(page, screen) {
     // отклик на действие внутри окна), но сверять композицию через них нельзя.
     main.toasts.removeAll(true)
     if (c.claimTasks) main.state.claimAllTaskRewards()
+    // Состояние новых осей. Выдаём предметы ТЕМ ЖЕ кодом, что игра (паки и
+    // автоэкипировка), а не расставляя их руками: кадр должен показывать то,
+    // что игрок и увидит, включая редкости, уровни и то, что влезло в слоты.
+    if (c.draw) {
+      main.state.gems += 2000
+      main.state.gear.draw('standard', c.draw)
+      main.state.autoGear()
+    }
+    if (c.drawParts) {
+      main.state.gems += 2000
+      main.state.parts.draw('parts', c.drawParts)
+      main.state.autoGarage()
+    }
+    if (c.arena) { for (let i = 0; i < c.arena; i++) main.state.playArena(0) }
+    if (c.register) { for (const k of ['league', 'weekly', 'cup']) main.state.registerBracketFor(k) }
+    if (c.club) { main.state.joinClub(0); main.state.startClash(); main.state.capturePosition(0) }
+    if (c.cards) {
+      main.state.collection.packs = 4
+      for (let i = 0; i < 4; i++) main.state.openCollectionPack()
+    }
+    if (c.outfits) {
+      for (let i = 0; i < c.outfits; i++) main.state.grant({ kind: 'outfit' })
+    }
+    if (c.wild) main.state.collection.wild = c.wild
+    if (c.album != null) {
+      const col = main.state.collection
+      for (let i = 0; i < 9; i++) col.cards[`${c.album}:${i}`] = 1
+    }
+    if (c.unique) {
+      main.state.roster.create('unique')
+      for (let i = 0; i < 3; i++) main.state.roster.create('pro')
+      main.state.grant({ kind: 'cores', amount: 6 })
+    }
     if (c.open) main[c.open]()
     if (c.tab != null) main.modal?.setTab?.(c.tab)
   }, cfg)

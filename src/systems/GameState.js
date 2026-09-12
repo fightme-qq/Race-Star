@@ -34,7 +34,7 @@ import {
   slotRowsFor, buyPaint, buyDecal,
 } from './GarageSystem.js'
 import { seatCount } from '../config/drivers.js'
-import { CLUB, CUP, WEEKLY } from '../config/compete.js'
+import { CLUB, CUP, WEEKLY, BRACKET } from '../config/compete.js'
 import {
   freshArena, arenaRollover, arenaOpponents, arenaMatch, arenaRefresh,
   arenaRank, arenaLeague, arenaNextLeague, arenaRankings, arenaResetInSec,
@@ -902,7 +902,10 @@ export class GameState {
     const info = this.bracketInfo(kind)
     if (info.blocked) return false
     if (kind === 'cup' && info.cupBlocked !== null) return false
-    return registerBracket(this.bracketOf(kind), info.key, this.cls.races || 0)
+    // Длина раунда у кубка своя: его период — ступень, а не сезон (см. шапку
+    // BRACKET.racesPerRound).
+    const perRound = kind === 'cup' ? CUP.racesPerRound : BRACKET.racesPerRound
+    return registerBracket(this.bracketOf(kind), info.key, this.cls.races || 0, perRound)
   }
 
   // Шаг сетки. Зовётся из RaceRewards (правило 7): награду турнира раздаёт тот

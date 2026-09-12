@@ -19,7 +19,17 @@ export const EPOCH_UTC = Date.UTC(2026, 0, 1)
 // долларах, по той же причине, что призовые и цена продажи драйвера: плоская
 // сумма к середине игры отстаёт от экономики на порядки и кнопка умирает.
 // Гемы и трофеи плоские — они не инфлируют.
-export const REWARD_ICON = { gems: '💎', cashSec: '💵', trophy: '🏆', token: '🪙' }
+export const REWARD_ICON = { gems: '💎', cashSec: '💵', trophy: '🏆', token: '🪙',
+  // Шаг 8 платит расходниками осей силы, а не только валютой. Без этих трёх
+  // строк награда турнира рисовалась как «2 » с пустой иконкой.
+  shards: '⬢',
+  carShards: '⚙',
+  coupon: '🎫',
+  cores: '⬣',
+  outfit: '🧥',
+  car: '🏎',
+  carStar: '★',
+}
 
 export const TASK_TOKENS = { daily: 10, weekly: 100 }   // [F]
 

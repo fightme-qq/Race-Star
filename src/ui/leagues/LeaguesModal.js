@@ -44,6 +44,7 @@ export class LeaguesModal extends Phaser.GameObjects.Container {
     this.title = label(scene, width / 2, by + 14, '', { size: 20, bold: true, align: 'center' })
     const x = new Button(scene, bx + bw - 34, by + 26, 40, 40, '✕',
       { fill: PAL.panelAlt, color: CSS.muted, size: 18, radius: 20 })
+    this.closeBtn = x
     x.on('press', () => this.close())
     this.add([dim, sheet, this.title, x])
 
@@ -58,6 +59,15 @@ export class LeaguesModal extends Phaser.GameObjects.Container {
 
     this.scroll = new ScrollView(scene, bx + 6, by + 84, bw - 12, bh - 96, { fade: PAL.bg })
     this.add(this.scroll)
+
+    // Маска ScrollView обрезает ПИКСЕЛИ, но не зону нажатия. Список добавлен в
+    // контейнер после полосы вкладок, то есть лежит выше неё, и прокрученная
+    // вниз строка перехватывала тап по вкладке: кнопка под маской не видна, но
+    // нажимается. Поймано на гараже (PAINT вместо переключения вкладки надевал
+    // деталь), проявляется на ПРАВЫХ вкладках — там, где x кнопок строк
+    // совпадает с x вкладки. Поднимаем панель управления окном наверх.
+    for (const b of this.tabs) this.bringToTop(b)
+    this.bringToTop(this.closeBtn)
     this.cw = bw - 24
 
     this.setTab(0)

@@ -6,7 +6,7 @@ import { positionProtected } from '../../systems/ClubSystem.js'
 import { formatNum } from '../../utils/format.js'
 import { label, Button } from '../widgets.js'
 import { fitText } from '../layout.js'
-import { clockHms } from './ArenaHeader.js'
+import { formatHms } from '../../utils/format.js'
 
 const ROW_H = 44
 const BTN_W = 104
@@ -111,7 +111,7 @@ export class ClashBoard extends Phaser.GameObjects.Container {
     } else {
       this.score.setY(y).setText(`My Club ${Math.round(clash.myScore)}`
         + `  —  Rival ${Math.round(clash.foeScore)}`)
-      this.ends.setY(y + 4).setText(`Ends in ${clockHms((clash.endsAt - now) / 1000)}`)
+      this.ends.setY(y + 4).setText(`Ends in ${formatHms((clash.endsAt - now) / 1000)}`)
       const pred = s.clashPredicted.map(rewardLabel).join('  ·  ')
       this.predicted.setY(y + 22).setText(`Predicted reward: ${pred || 'none'}`)
       fitText(this.predicted.setFontSize(11), this.boxW - 28)
@@ -142,7 +142,7 @@ export class ClashBoard extends Phaser.GameObjects.Container {
         .setText(mine ? 'You' : pos.owner === 'foe' ? 'Rival Club' : 'Empty')
         .setColor(mine ? CSS.accent : pos.owner === 'foe' ? CSS.red : CSS.muted)
       view.guard.setY(top + 22).setVisible(guarded)
-        .setText(`Protected ${clockHms((pos.until - now) / 1000)}`)
+        .setText(`Protected ${formatHms((pos.until - now) / 1000)}`)
       view.btn.setText(mine ? 'Yours' : guarded ? 'Protected' : pos.owner === 'foe' ? 'Challenge' : 'Claim')
       fitText(view.btn.txt.setFontSize(11), BTN_W - 12)
       view.btn.setFill(pos.owner === 'foe' ? PAL.accent : PAL.green)

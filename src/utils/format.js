@@ -39,3 +39,13 @@ export function formatPercent(value, digits = 0) {
 export function ordinalPos(pos) {
   return 'P' + pos
 }
+
+// Часы:минуты:секунды. Отдельно от formatClock (MM:SS), потому что у арены и
+// Club Clash счётчик идёт до суток и дольше: `formatClock` показал бы 1439:59.
+// Живёт здесь, а не в экране арены, чтобы второй копии арифметики времени не
+// появилось (её уже начали писать в ArenaHeader).
+export function formatHms(seconds) {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  return h > 0 ? h + ':' + formatClock(s % 3600) : formatClock(s)
+}

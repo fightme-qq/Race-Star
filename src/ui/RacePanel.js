@@ -49,7 +49,7 @@ export class RacePanel extends Phaser.GameObjects.Container {
     const ribbonY = y + 84
     this.ribbon = new LapRibbon(scene, x, ribbonY, w)
     const trackY = ribbonY + this.ribbon.boxH + 6
-    this.track = new TrackView(scene, x + 8, trackY, w - 16, y + h - 8 - trackY)
+    this.track = new TrackView(scene, x + 8, trackY, w - 16, y + h - 8 - trackY, state)
 
     // [F] Всплывашка прироста фанатов прямо на карте: `👥 443 ⌃ +205`.
     this.fansPop = label(scene, x + w / 2, y + h - 34, '', { size: 15, bold: true, align: 'center', color: CSS.onDark })

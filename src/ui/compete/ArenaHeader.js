@@ -1,17 +1,13 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../../config/palette.js'
 import { ARENA } from '../../config/compete.js'
-import { formatNum, formatClock } from '../../utils/format.js'
+import { formatNum, formatClock, formatHms } from '../../utils/format.js'
 import { label, Bar } from '../widgets.js'
 import { fitText } from '../layout.js'
 
 // `HH:MM:SS`. В format.js есть только `formatClock` (MM:SS) — у арены сутки, и
 // «1439:59» читается как ошибка. Часы отделяем, минуты и секунды отдаёт тот же
 // formatClock: второй копии арифметики времени тут нет.
-export const clockHms = (sec) => {
-  const s = Math.max(0, sec)
-  return String(Math.floor(s / 3600)).padStart(2, '0') + ':' + formatClock(s % 3600)
-}
 
 // Шапка арены. Лига — по НАКОПЛЕННЫМ медалям, ранг — по дневным (в попапе [E]
 // это два разных предложения), поэтому строки про них стоят врозь: слитые в одну
@@ -67,7 +63,7 @@ export class ArenaHeader extends Phaser.GameObjects.Container {
     this.rank.setText(`Rank: ${s.arenaRankNow}`)
     this.tickets.setText(`🎟 ${a.tickets}/${ARENA.ticketsRefill}`)
       .setColor(a.tickets > 0 ? CSS.greenDim : CSS.red)
-    this.refill.setText(`Refills in ${clockHms(s.arenaResetSec)}`)
+    this.refill.setText(`Refills in ${formatHms(s.arenaResetSec)}`)
 
     const from = cur.medals
     const to = next ? next.medals : cur.medals

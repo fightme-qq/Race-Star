@@ -1,10 +1,16 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../../config/palette.js'
 import { RARITY_BY_ID, STARS } from '../../config/drivers.js'
+import { CORES } from '../../config/extras.js'
 import { effStats, statBonus, ratingOf, nameOf, xpToNext } from '../../systems/DriverSystem.js'
-import { label } from '../widgets.js'
+import { coreSteps } from '../../systems/ExtrasSystem.js'
+import { label, Button } from '../widgets.js'
 
 export const DCARD_H = 64
+// Полоса Unique Cores. Пристёгнута к карточке, а не вынесена в панель действий
+// внизу списка: действие относится к ОДНОМУ драйверу (апгрейд уникального), и
+// пятая кнопка в ряду из четырёх ужала бы подписи до нечитаемых 8px.
+export const CORE_H = 34
 
 const fmt = (v) => (Math.round(v * 10) / 10).toFixed(v % 1 ? 1 : 0)
 
@@ -12,11 +18,15 @@ const fmt = (v) => (Math.round(v * 10) / 10).toFixed(v % 1 ? 1 : 0)
 // редкость), ⚔ Offense и 🛡 Defense с приростом в скобках, Lv. N и полоса XP.
 // Третьего стата на карточке в оригинале нет — не выдумываем.
 export class DriverCard extends Phaser.GameObjects.Container {
-  constructor(scene, driver, x, y, w, { onTap = null, badge = '' } = {}) {
+  constructor(scene, driver, x, y, w, { onTap = null, badge = '', onCore = null } = {}) {
     super(scene, x, y)
     this.driver = driver
     this.boxW = w
     this.selected = false
+    // Ядра показываются только у Unique [E] «Get more unique drivers to
+    // upgrade» — у остальных редкостей этого апгрейда не существует.
+    this.hasCore = !!onCore && driver.rarity === 'unique'
+    this.boxH = DCARD_H + (this.hasCore ? CORE_H : 0)
 
     this.bg = scene.add.graphics()
     this.ring = scene.add.graphics()
@@ -31,6 +41,13 @@ export class DriverCard extends Phaser.GameObjects.Container {
 
     this.add([this.bg, this.ring, this.rating, this.nameText, this.sub,
       this.xpBar, this.xpText, this.offText, this.defText, this.badge])
+
+    if (this.hasCore) {
+      this.coreInfo = label(scene, 12, DCARD_H + 10, '', { size: 10, bold: true, color: CSS.purple })
+      this.coreBtn = new Button(scene, w - 76, DCARD_H + CORE_H / 2, 136, 24, '', { size: 11, fill: PAL.purple })
+      this.coreBtn.on('press', () => onCore(this.driver))
+      this.add([this.coreInfo, this.coreBtn])
+    }
 
     if (onTap) {
       // Точка нормализуется на displayOrigin контейнера (см. widgets.js), а
@@ -68,9 +85,16 @@ export class DriverCard extends Phaser.GameObjects.Container {
 
     this.bg.clear()
     this.bg.fillStyle(PAL.panelAlt, 1)
-    this.bg.fillRoundedRect(0, 0, this.boxW, DCARD_H, 10)
+    this.bg.fillRoundedRect(0, 0, this.boxW, this.boxH, 10)
     this.bg.lineStyle(this.selected ? 2 : 1, this.selected ? PAL.accent : PAL.line, 1)
-    this.bg.strokeRoundedRect(0, 0, this.boxW, DCARD_H, 10)
+    this.bg.strokeRoundedRect(0, 0, this.boxW, this.boxH, 10)
+    if (this.hasCore) {
+      // Разделитель: полоса ядер — отдельное действие, и без линии она читается
+      // как продолжение строки XP.
+      this.bg.lineStyle(1, PAL.line, 1)
+      this.bg.lineBetween(10, DCARD_H, this.boxW - 10, DCARD_H)
+      this.coreInfo.setText(`⬣ Unique Core  ${coreSteps(d)} / ${CORES.maxSteps}`)
+    }
 
     // [F] Круг рейтинга окрашен по редкости. На светлой теме прежняя заливка
     // с полупрозрачным фоном давала одинаковый серый у всех редкостей —

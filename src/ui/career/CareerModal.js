@@ -8,8 +8,19 @@ import { formatNum } from '../../utils/format.js'
 import { panel, label, Button, Bar } from '../widgets.js'
 import { ScrollView } from '../ScrollView.js'
 import { SkillNode, NODE_H } from './SkillNode.js'
+import { OutfitsView } from '../extras/OutfitsView.js'
+import { AvatarsView } from '../extras/AvatarsView.js'
 
 const GAP = 8
+
+// Вкладки окна. Аутфиты здесь, а не отдельной модалкой: в оригинале это
+// `Career Driver Outfits` [E] — та же сущность, что дерево навыков, и шапка с
+// уровнем и статами драйвера над ними общая. Аватар — тоже лицо игрока-драйвера.
+const TABS = [
+  { key: 'skills', text: 'SKILLS', View: null },
+  { key: 'outfits', text: 'OUTFITS', View: OutfitsView },
+  { key: 'avatars', text: 'AVATARS', View: AvatarsView },
+]
 
 // Скилл-дерево карьерного драйвера. Накладка поверх главного экрана — гонка
 // за ней продолжается, как и в модалке драйверов.
@@ -40,11 +51,19 @@ export class CareerModal extends Phaser.GameObjects.Container {
     this.add([dim, box, title, this.classText, this.levelText, this.statsText,
       this.xpBar, this.xpText, this.pointsText])
 
-    const cx = bx + 12, cy = by + 92
-    const cw = bw - 24, ch = bh - 92 - 50
+    const tw = (bw - 24) / TABS.length
+    this.tabs = TABS.map((tab, i) => {
+      const btn = new Button(scene, bx + 12 + tw * (i + 0.5), by + 100, tw - 6, 26, tab.text, { size: 11 })
+      btn.on('press', () => this.setTab(i))
+      this.add(btn)
+      return btn
+    })
+
+    const cx = bx + 12, cy = by + 120
+    const cw = bw - 24, ch = bh - 120 - 50
+    this.contentW = cw
     this.scroll = new ScrollView(scene, cx, cy, cw, ch, { fade: PAL.panel })
     this.add(this.scroll)
-    this.buildTree(scene, cw)
 
     this.resetBtn = new Button(scene, bx + bw / 2 - 74, by + bh - 24, 140, 32, '', { fill: PAL.line, size: 11 })
     this.resetBtn.on('press', () => this.resetSkills())
@@ -52,8 +71,41 @@ export class CareerModal extends Phaser.GameObjects.Container {
     close.on('press', () => this.close())
     this.add([this.resetBtn, close])
 
-    this.refresh()
+    // Маска ScrollView режет ПИКСЕЛИ, но не зону нажатия: список добавлен после
+    // полосы вкладок и лежит выше неё, поэтому прокрученная вверх строка
+    // перехватывала бы тап по вкладке (та же грабля, что в окнах наград и
+    // магазина). Панель управления окном поднимаем наверх.
+    for (const b of this.tabs) this.bringToTop(b)
+    this.bringToTop(this.resetBtn)
+    this.bringToTop(close)
+
+    this.setTab(0)
     scene.add.existing(this)
+  }
+
+  // Вкладка пересобирается целиком, как в окнах наград и магазина: у дерева
+  // десять узлов, у аутфитов шестнадцать строк, и держать оба набора живыми
+  // ради переключения означало бы два экрана объектов там, где виден один.
+  setTab(index) {
+    this.tab = index
+    this.tabs.forEach((b, i) => b.setFill(i === index ? PAL.accent : PAL.panelAlt))
+    this.scroll.clearContent()
+    this.nodes = []
+    this.view = null
+    const { View } = TABS[index]
+    if (View) {
+      this.view = new View(this.scene, this.state, this.contentW - 12, {
+        toast: this.toast,
+        onChange: () => { this.onChange?.(); this.refresh() },
+      })
+      this.view.setPosition(6, 0)
+      this.scroll.inner.add(this.view)
+    } else {
+      this.buildTree(this.scene, this.contentW)
+    }
+    // Сброс дерева относится только к дереву — на других вкладках кнопки нет.
+    this.resetBtn.setVisible(!View)
+    this.refresh()
   }
 
   // Узлы сгруппированы ярусами. Содержимое кладётся в scroll.inner и потому
@@ -115,6 +167,10 @@ export class CareerModal extends Phaser.GameObjects.Container {
     this.pointsText.setColor(free > 0 ? CSS.accent : CSS.dim)
 
     for (const node of this.nodes) node.refresh(career)
+    if (this.view?.active) {
+      this.view.refresh()
+      this.scroll.setContentHeight(this.view.boxH)
+    }
 
     this.resetBtn.setText(`Reset · ${CAREER.resetGems} 💎`)
     this.resetBtn.setEnabled(s.canResetSkills())

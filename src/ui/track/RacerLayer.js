@@ -58,6 +58,13 @@ export class RacerLayer {
     }
   }
 
+  // Краска из гаража (шаг 7). Без этой строки косметика не видна НИГДЕ, кроме
+  // превью в самом гараже, — то есть единственный сток, который ничего не даёт
+  // в силе, не давал бы и того, ради чего он существует.
+  setPlayerColor(color) {
+    if (color != null && this.cars[0]) this.cars[0].color = color
+  }
+
   update(sim, alpha, dt) {
     const fresh = sim !== this.sim
     this.sim = sim

@@ -3,7 +3,6 @@ import { PAL, CSS } from '../../config/palette.js'
 import { formatNum } from '../../utils/format.js'
 import { label, Button } from '../widgets.js'
 import { fitText } from '../layout.js'
-import { sectionCard } from '../shop/ShopRow.js'
 
 const HEADER_H = 76
 const COLS = 3
@@ -63,6 +62,15 @@ export class AvatarsView extends Phaser.GameObjects.Container {
     this.onChange?.()
   }
 
+  // Подложка — `panelAlt`: вид живёт внутри белой карточки карьеры, и белое на
+  // белом видно только по рамке (то же решение, что в OutfitsView).
+  card(y, h) {
+    this.bg.fillStyle(PAL.panelAlt, 1)
+    this.bg.fillRoundedRect(0, y, this.boxW, h, 12)
+    this.bg.lineStyle(1, PAL.line, 1)
+    this.bg.strokeRoundedRect(0, y, this.boxW, h, 12)
+  }
+
   // `500 races` + `312 / 500` двумя строками: в колонке 98px одной строкой это
   // ужимается до нечитаемого кегля.
   needText(row, stats) {
@@ -70,7 +78,10 @@ export class AvatarsView extends Phaser.GameObjects.Container {
     if (!need) return 'Starter'
     const [key, goal] = Object.entries(need)[0]
     const have = stats[key] ?? 0
-    const caption = key === 'league' ? `League ${goal}` : `${formatNum(goal)} ${NEED_NAME[key]}`
+    // `1 albums` — цена одной таблицы подписей на четыре условия; снимаем «s»
+    // у единицы, иначе строка выглядит как не доделанная локализация.
+    const word = goal === 1 ? NEED_NAME[key].replace(/s$/, '') : NEED_NAME[key]
+    const caption = key === 'league' ? `League ${goal}` : `${formatNum(goal)} ${word}`
     if (row.open) return '✓ ' + caption
     return `${caption}\n${formatNum(have)} / ${formatNum(goal)}`
   }
@@ -81,7 +92,7 @@ export class AvatarsView extends Phaser.GameObjects.Container {
     const stats = s.vanityStats
 
     this.bg.clear()
-    sectionCard(this.bg, 0, this.boxW, HEADER_H)
+    this.card(0, HEADER_H)
     this.count.setText(`${rows.filter((r) => r.open).length} / ${rows.length} unlocked`)
     fitText(this.stats.setFontSize(11).setText(
       `${formatNum(stats.races)} races  ·  ${formatNum(stats.wins)} wins  ·  ` +
@@ -91,13 +102,13 @@ export class AvatarsView extends Phaser.GameObjects.Container {
     const gridTop = HEADER_H + GAP
     const gridRows = Math.ceil(rows.length / COLS)
     const gridH = gridRows * CELL_H + (gridRows - 1) * GAP + PAD * 2
-    sectionCard(this.bg, gridTop, this.boxW, gridH)
+    this.card(gridTop, gridH)
 
     rows.forEach((row, i) => {
       const cell = this.cells[i]
       const top = gridTop + PAD + cell.row * (CELL_H + GAP)
       const x = cell.cx - cell.cw / 2
-      this.bg.fillStyle(row.active ? PAL.accent : PAL.panelAlt, row.active ? 0.12 : 1)
+      this.bg.fillStyle(row.active ? PAL.accent : PAL.panel, row.active ? 0.12 : 1)
       this.bg.fillRoundedRect(x, top, cell.cw, CELL_H, 10)
       this.bg.lineStyle(row.active ? 2 : 1, row.active ? PAL.accent : PAL.line, 1)
       this.bg.strokeRoundedRect(x, top, cell.cw, CELL_H, 10)

@@ -56,8 +56,11 @@ export class CardChip extends Phaser.GameObjects.Container {
     this.letter.setText(card.rarity.name[0])
     this.letter.setColor(card.owned ? textOn(c) : CSS.dim)
     this.sub.setColor(card.owned ? textOn(c) : this.tappable ? CSS.accent : CSS.dim)
+    // Порядок подписей не произвольный: золотая копия может существовать БЕЗ
+    // обычной (это две разные карты [E]), и такая клетка обязана остаться
+    // «недостающей» — иначе `GOLDEN` на сером фоне читается как «собрано».
     fitText(this.sub.setFontSize(9).setText(
-      card.golden ? 'GOLDEN' : this.tappable ? 'USE WILD' : card.rarity.name.toUpperCase()
+      this.tappable ? 'USE WILD' : card.owned && card.golden ? 'GOLDEN' : card.rarity.name.toUpperCase()
     ), this.boxW - 8)
     return this
   }

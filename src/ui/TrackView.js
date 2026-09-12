@@ -22,10 +22,12 @@ import { SHAPE } from './track/shape.js'
 // поэтому она вынесена отдельно и покрыта прогоном tools/sim/track.js.
 
 export class TrackView extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, w, h) {
+  constructor(scene, x, y, w, h, state = null) {
     super(scene, x, y)
     this.boxW = w
     this.boxH = h
+    // Состояние нужно ровно для одного: цвета машины игрока из гаража (шаг 7).
+    this.state = state
 
     this.path = new TrackPath(w, h, SHAPE)
     this.scenery = new TrackScenery(scene, this.path, w, h)
@@ -55,6 +57,9 @@ export class TrackView extends Phaser.GameObjects.Container {
   // вне кадра обновления (например, сразу после покупки), и на game.loop.delta
   // машины успевали бы шагнуть дважды за один кадр.
   update(sim, alpha, dt) {
+    // Цвет машины игрока берётся из гаража каждый кадр, а не при создании:
+    // краску меняют при открытом окне, и трасса под ним продолжает ехать.
+    this.racers.setPlayerColor(this.state?.paintColor ?? null)
     this.racers.update(sim, alpha, dt)
     this.painter.draw(this.racers.cars, this.scene.time.now)
     this.fx.update(Math.min(0.05, dt))

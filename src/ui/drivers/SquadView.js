@@ -1,12 +1,14 @@
 import Phaser from 'phaser'
 import { PAL, CSS } from '../../config/palette.js'
 import { SQUAD_SIZE, RARITY_BY_ID } from '../../config/drivers.js'
+import { CORES } from '../../config/extras.js'
 import { ratingOf, canMerge, feedXpOf, nameOf } from '../../systems/DriverSystem.js'
+import { coreSteps } from '../../systems/ExtrasSystem.js'
 import { formatMoney } from '../../utils/format.js'
 import { label, Button } from '../widgets.js'
 import { fitText } from '../layout.js'
 import { ScrollView } from '../ScrollView.js'
-import { DriverCard, DCARD_H } from './DriverCard.js'
+import { DriverCard } from './DriverCard.js'
 
 const GAP = 8
 // Панель действий: подсказка + ряд кнопок. Было BAR_H=44 при подсказке на +2 и
@@ -93,10 +95,30 @@ export class SquadView extends Phaser.GameObjects.Container {
         else this.pickUid = this.pickUid === d.uid ? null : d.uid
         this.refresh()
       },
+      onCore: (d) => this.coreUp(d),
     })
     this.scroll.inner.add(c)
     this.cards.push({ card: c, isSquad })
-    return y + DCARD_H + GAP
+    // Высоту берём у карточки: у Unique она выше на полосу ядер.
+    return y + c.boxH + GAP
+  }
+
+  // Unique Cores [E]: «Unique driver upgrades permanently consume one driver to
+  // strengthen another!» — жертвой идёт САМЫЙ СЛАБЫЙ резервный драйвер.
+  // Выбирать жертву руками нельзя намеренно: это необратимое удаление, и
+  // случайный тап по сильному драйверу был бы дороже любой другой ошибки в окне.
+  coreUp(driver) {
+    const victim = this.roster.sortedReserves().filter((d) => d.uid !== driver.uid).at(-1)
+    if (!victim) { this.toast('Need a reserve driver to consume', PAL.muted); return }
+    if (!this.state.canCoreUp(driver.uid)) {
+      this.toast(`Need ${CORES.perStep} ⬣ Unique Cores`, PAL.muted)
+      return
+    }
+    if (!this.state.coreUp(driver.uid, victim.uid)) return
+    this.toast(`${nameOf(driver)} core up · ${nameOf(victim)} consumed`, PAL.purple)
+    this.pickUid = null
+    this.build()
+    this.onChange?.()
   }
 
   get target() { return this.roster.get(this.targetUid) }
@@ -141,10 +163,17 @@ export class SquadView extends Phaser.GameObjects.Container {
   }
 
   refresh() {
+    const cores = this.state.extras.cores
     for (const { card, isSquad } of this.cards) {
       const sel = isSquad ? card.driver.uid === this.targetUid : card.driver.uid === this.pickUid
       card.setSelected(sel)
       card.badge.setText(isSquad && card.driver.uid === this.targetUid ? 'PLAYING NOW' : '')
+      if (!card.hasCore) continue
+      // На кнопке СВОЙ счётчик (ядра на руках), а на карточке — ступени: это
+      // два разных лимита, и путать их нельзя («хватит ли» vs «докуда можно»).
+      const maxed = coreSteps(card.driver) >= CORES.maxSteps
+      card.coreBtn.setText(maxed ? 'Core MAX' : `Core Up · ${cores} / ${CORES.perStep} ⬣`)
+      card.coreBtn.setEnabled(!maxed && this.state.canCoreUp(card.driver.uid))
     }
 
     const pick = this.pick

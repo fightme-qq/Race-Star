@@ -47,6 +47,7 @@ export class ShopModal extends Phaser.GameObjects.Container {
     const x = new Button(scene, bx + bw - 34, by + 28, 40, 40, '✕',
       { fill: PAL.panelAlt, color: CSS.muted, size: 18, radius: 20 })
     x.on('press', () => this.close())
+    this.closeBtn = x
     this.wallet = label(scene, bx + 16, by + 22, '', { size: 12, color: CSS.muted })
     this.add([dim, sheet, title, x, this.wallet])
 
@@ -64,6 +65,13 @@ export class ShopModal extends Phaser.GameObjects.Container {
 
     this.scroll = new ScrollView(scene, bx + 6, by + 90, bw - 12, bh - 102, { fade: PAL.bg })
     this.add(this.scroll)
+
+    // Маска ScrollView обрезает ПИКСЕЛИ, но не зону нажатия: список добавлен в
+    // контейнер после вкладок, то есть лежит выше них, и прокрученная вниз
+    // строка перехватывала тап по правой вкладке (`PASSES`). Поймано на гараже,
+    // где это надевало деталь вместо переключения экрана.
+    for (const b of this.tabs) this.bringToTop(b)
+    this.bringToTop(this.closeBtn)
 
     this.setTab(0)
     scene.add.existing(this)
