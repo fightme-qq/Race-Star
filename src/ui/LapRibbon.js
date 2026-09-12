@@ -39,12 +39,14 @@ export class LapRibbon extends Phaser.GameObjects.Container {
     scene.add.existing(this)
   }
 
-  update(sim) {
+  // alpha — доля прожитого тика симуляции. Без неё точки на ленте ползли
+  // ступеньками по 100 мс: тик 10 Гц, кадр 60 Гц.
+  update(sim, alpha = 1) {
     const span = this.boxW - 30
     for (let i = 0; i < this.dots.length; i++) {
       const racer = sim.racers[i]
       if (!racer) continue
-      const done = Phaser.Math.Clamp(racer.progress, 0, 1)
+      const done = Phaser.Math.Clamp(sim.progressOf(racer, alpha), 0, 1)
       // Ряды чередуются по стартовому номеру — так на кадре и сделано,
       // иначе десять точек слипаются в одну кляксу на старте.
       this.dots[i].setPosition(8 + span * done, ROW_H * (i % ROWS) + ROW_H / 2)

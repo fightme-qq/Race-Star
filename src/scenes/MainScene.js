@@ -144,6 +144,7 @@ export class MainScene extends Phaser.Scene {
     // сообщений хода гонки. При открытой модалке попап молчит: он лежит выше
     // окна и накрывал бы таблицу лиги каждые 60 секунд.
     if (!this.modal?.active) this.finish.show(res, this.state.gemsToday)
+    this.racePanel.finishFlash(res.position)
     if (res.fans > 0) this.racePanel.popFans(this.state.cls.fans, res.fans)
     if (res.careerLevels > 0) {
       this.toasts.show(`Career Lv. ${this.state.career.level} · +${res.careerLevels} pts`, PAL.cyan)
@@ -167,7 +168,14 @@ export class MainScene extends Phaser.Scene {
 
   update(time, delta) {
     this.race.update(delta)
-    this.racePanel.refresh(this.race.sim)
+    // dt и alpha идут в панель ТОЛЬКО отсюда: это единственное место, которое
+    // вызывается ровно раз в кадр. delta режем сверху — после сворачивания
+    // вкладки браузер отдаёт один кадр с delta в несколько секунд, и машины
+    // прыгнули бы через пол-трассы.
+    this.racePanel.refresh(this.race.sim, {
+      alpha: this.race.alpha,
+      dt: Math.min(0.05, delta / 1000),
+    })
 
     // Тяжёлый рефреш (цены, доступность кнопок) — 5 раз в секунду.
     this.uiTimer += delta

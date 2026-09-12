@@ -34,10 +34,10 @@ export class RaceSimulation {
   makeRacer(id, shape, isPlayer) {
     const attacking = this.rng.next() < RACE.attackWeight
     return {
-      id, isPlayer, shape, attacking, progress: 0, position: id + 1,
+      id, isPlayer, shape, attacking, progress: 0, prevProgress: 0, position: id + 1,
       stat: attacking ? shape.attack : shape.hold,
       form: Math.exp(this.rng.gauss(0, shape.sigma)),
-      speed: 1, wobble: this.rng.float(0, Math.PI * 2),
+      speed: 1, jitter: 0, wobble: this.rng.float(0, Math.PI * 2),
     }
   }
 
@@ -54,14 +54,23 @@ export class RaceSimulation {
     this.elapsed += step
 
     for (const r of this.racers) {
-      // Покадровая тряска — ТОЛЬКО картинка. За 600 тиков она усредняется в
-      // ноль и на финиш не влияет; именно попытка повесить на неё защиту и
-      // делала деление слотов косметическим. Защита теперь в r.shape.sigma.
-      const noise = this.rng.gauss(0, RACE.stepNoise)
-      // Плавная составляющая — чтобы точки не дёргались покадрово.
+      // Тряска темпа — ТОЛЬКО картинка. За 600 тиков она усредняется в ноль и
+      // на финиш не влияет; именно попытка повесить на неё защиту и делала
+      // деление слотов косметическим. Защита теперь в r.shape.sigma.
+      //
+      // Шум СГЛАЖЕННЫЙ, а не белый, и это исправление видимого дефекта: белый
+      // менял скорость скачком десять раз в секунду, из-за чего машины шли
+      // рывками даже на прямой. Здесь первый порядок с постоянной ~0.2 с:
+      // цель разыгрывается каждый тик, сама тряска подтягивается к ней. У
+      // сглаженного стационарный разброс меньше в sqrt(3), поэтому коэффициент
+      // поднят с 0.35 до 0.6 — «живой» темп остался той же амплитуды.
+      // На исход это не влияет: за 60 секунд вклад в итоговый прогресс
+      // порядка 0.6% против 11.5% разыгранной формы (сверка — tools/sim/fastrace.js).
+      r.jitter += (this.rng.gauss(0, RACE.stepNoise) - r.jitter) * Math.min(1, step * 5)
       r.wobble += step * 1.7
       const drift = Math.sin(r.wobble) * 0.06
-      r.speed = Math.max(0.25, this.baseSpeedOf(r) * (1 + noise * 0.35 + drift))
+      r.prevProgress = r.progress
+      r.speed = Math.max(0.25, this.baseSpeedOf(r) * (1 + r.jitter * 0.6 + drift))
       r.progress += r.speed * step / this.duration
     }
 
@@ -94,9 +103,18 @@ export class RaceSimulation {
     return out
   }
 
-  // Позиция точки на трассе: доля круга + номер круга.
-  lapPositionOf(racer) {
-    const total = racer.progress * RACE.laps
-    return { lap: Math.floor(total) + 1, t: total % 1 }
+  // --- Чтение для отрисовки ------------------------------------------------
+  // Симуляция шагает фиксированными тиками (10 Гц), а рисуем мы 60 раз в
+  // секунду. Пока вид брал progress напрямую, машины стояли по 5-6 кадров и
+  // прыгали на седьмом: ровно то дрожание, которое видно глазом. alpha — доля
+  // прожитого тика, приходит из RaceController.
+  progressOf(racer, alpha = 1) {
+    const a = alpha < 0 ? 0 : alpha > 1 ? 1 : alpha
+    return racer.prevProgress + (racer.progress - racer.prevProgress) * a
+  }
+
+  // Дистанция в КРУГАХ — то, чем меряет положение на трассе TrackPath.
+  lapDistanceOf(racer, alpha = 1) {
+    return this.progressOf(racer, alpha) * RACE.laps
   }
 }

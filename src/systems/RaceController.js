@@ -12,6 +12,10 @@ export class RaceController {
     this.onFinish = onFinish
     this.sim = null
     this.accumulator = 0
+    // Доля прожитого тика симуляции. Отрисовка интерполирует по ней позиции:
+    // тики идут 10 раз в секунду, кадры — 60, и без alpha машины двигались
+    // рывками по 100 мс (см. RaceSimulation.progressOf).
+    this.alpha = 0
     this.start()
   }
 
@@ -40,6 +44,7 @@ export class RaceController {
       this.sim.step(stepSize)
       this.accumulator -= stepSize
     }
+    this.alpha = Math.min(1, this.accumulator / stepSize)
 
     for (const ev of this.sim.drainEvents()) this.onEvent(ev)
     if (this.sim.isLastLap && !this.lastLapAnnounced && this.sim.player.position <= 3) {

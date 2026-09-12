@@ -68,7 +68,14 @@ export class RacePanel extends Phaser.GameObjects.Container {
     this.scene.tweens.add({ targets: this.fansPop, alpha: 0, duration: 1600, delay: 700 })
   }
 
-  refresh(sim) {
+  // Клетчатая вспышка на карте в момент финиша: дёргается из MainScene, когда
+  // награды уже начислены.
+  finishFlash(position) { this.track.finish(position) }
+
+  // tick = { alpha, dt } приходит ТОЛЬКО из кадра обновления сцены. refreshUI
+  // зовёт refresh() без него (после покупки, при закрытии окна) — и тогда
+  // трасса не шагает: иначе машины успевали бы сделать два шага за один кадр.
+  refresh(sim, tick = null) {
     const s = this.state
     fitText(this.teamText.setFontSize(18).setText(s.teamName), this.leftW)
     fitText(this.fansText.setFontSize(15).setText('👥 ' + formatNum(s.cls.fans)), this.leftW)
@@ -90,7 +97,7 @@ export class RacePanel extends Phaser.GameObjects.Container {
     this.posText.setText(`P${pos}/${RACE.racers}`)
     this.posText.setColor(pos === 1 ? CSS.red : pos <= 3 ? CSS.gold : CSS.onDark)
     this.timeText.setText(formatClock(sim.timeLeft))
-    this.ribbon.update(sim)
-    this.track.update(sim)
+    this.ribbon.update(sim, tick?.alpha ?? 1)
+    if (tick) this.track.update(sim, tick.alpha, tick.dt)
   }
 }
